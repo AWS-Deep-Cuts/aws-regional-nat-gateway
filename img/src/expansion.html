@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- expansion: 自動モードで AZ に拡張されるまで（記事「仕組み」の「自動モードで AZ に拡張されるまで」、README の手順 4）。
+     時間は上から下へ流れる。左の枠はあなたの操作（灰色の点線）、右の枠は AWS が自動で行う処理（差し色の点線。README の「AWS が自動で行う処理」）。
+     行と本文の対応（article/aws-regional-nat-gateway.md の 153〜167 行目）:
+       1 行目: NAT ゲートウェイを作成する（CreateNatGateway、--availability-mode regional、README 手順 2-1）→ NAT ゲートウェイ全体の状態 State が pending → available。
+               aws ec2 wait nat-gateway-available が待つのは State が available になるまで（README 手順 2-2）。
+       2 行目: サブネットを作成する（CreateSubnet、AZ A と AZ C、README 手順 4-1）→ 点線の箱「サブネットだけで拡張されるか」。
+               AutoProvisionZones の説明は「新しい AZ にサブネットを作成するとその AZ に拡張する」と書き、CreateNatGateway の説明は「ENI を検出したとき」と書く。
+               説明が分かれているため点線で描き、手順 4 で AZ C を観測すると書く。
+       3 行目: インスタンスを起動する（RunInstances、AZ A のサブネット、README 手順 4-3）→ ENI を検出する。
+       4 行目: AZ A に EIP を関連付ける。NatGatewayAddresses の AZ A の要素の Status が succeeded になり、AZ A の外向きの通信を変換できる（README 手順 4-4 で観測する）。
+     区間線「平均 15〜20 分」: AWS の CDK のテストのコメント「AWS documents as taking 15-20 minutes on average」による（factsheet rng-058 NEEDS_NUANCE）。
+       15〜20 分の起点は CDK のコメントに書かれていないため、区間線はインスタンスの起動の行から EIP の関連付けの行までを示すだけで、起点を断定しない。
+       時間の軸（目盛り）は描かない（実際の時間の比率を示すと、裏の取れない値を示唆するため）。最大値は書かない（rng-059 UNVERIFIABLE）。
+     根拠: rng-023（ENI を検出すると新しい AZ へ拡張し EIP を関連付ける）、rng-032（AutoProvisionZones の説明）、rng-033（きっかけの書き方の違い）、
+       rng-036（NatGatewayAddresses の Status）、rng-038（State の値。available は健全性を表さない）、rng-042（waiter は State だけを 15 秒おきに最大 40 回確認する）。
+     アイコン: AmazonVPCElasticNetworkInterface（3 行目の右の箱の右上）。
+     座標（DESIGN 6.4 から調整）: 左の枠 0〜360（箱 24〜312）、右の枠 416〜800（箱 440〜776、中心 x=608）。
+       行の y: 1 行目 60〜210、2 行目 226〜346、3 行目 362〜482、4 行目 522〜652（3 行目と 4 行目の間は縦の矢印のため 40px）。枠の下端 676。
+       行ごとに左右の箱の高さをそろえ、横の矢印を水平にする。区間線は x=296、3 行目の左の箱の下端から 4 行目の右の箱の中心の高さまで。
+       左の箱に README の手順の番号を書く。 -->
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="deepcuts.css">
+<link rel="stylesheet" href="rnat.css">
+<script src="wires.js"></script>
+<style>
+  #fig { width: 800px; height: 860px; }
+  .st { box-sizing: border-box; }
+  .st > i { display: block; }
+  .st.q { border: 2px dashed var(--grey); background: transparent; color: var(--grey); }
+  .st.q > b { color: var(--grey); }
+  .st > span code { font-size: 15px; }
+  .srow { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .sb { font-family: var(--font-mono); font-weight: 800; font-size: 17px; border: 3px solid var(--ink); background: #fff; padding: 3px 10px; }
+  .sb.ink { background: var(--ink); color: #fff; }
+  .sb.hot { background: var(--hot); border-color: var(--hot); color: #fff; }
+  .srow .op { font-size: 17px; }
+  .span-l { position: absolute; }
+  .iv b { display: block; font-size: 19px; font-weight: 900; }
+  .card > .body { line-height: 1.55; }
+</style>
+</head><body>
+<div id="fig">
+  <svg id="wires"></svg>
+
+  <div class="lane fr" style="left:0;top:0;width:360px;height:676px"><span class="lt">あなたの操作</span></div>
+  <div class="lane aws fr" style="left:416px;top:0;width:384px;height:676px"><span class="lt">AWS が自動で行う処理</span></div>
+
+  <!-- 1 行目 -->
+  <div class="st" id="l1" data-self="1" style="left:24px;top:60px;width:288px;height:150px"><i>手順 2-1</i><b>NAT ゲートウェイを作成する</b><span><code>create-nat-gateway</code><br><code>--availability-mode regional</code></span></div>
+  <div class="st" id="r1" data-self="1" style="left:440px;top:60px;width:336px;height:150px"><b>NAT ゲートウェイ全体の状態</b>
+    <div class="srow"><span class="sb">pending</span><span class="op">→</span><span class="sb ink">available</span></div>
+    <span><code>wait nat-gateway-available</code> が<br>待つのはここまで</span></div>
+
+  <!-- 2 行目 -->
+  <div class="st" id="l2" data-self="1" style="left:24px;top:226px;width:288px;height:120px"><i>手順 4-1</i><b>サブネットを作成する</b><span><code>create-subnet</code><br>AZ A と AZ C</span></div>
+  <div class="st q" id="r2" data-self="1" style="left:440px;top:226px;width:336px;height:120px"><b>サブネットだけで拡張されるか</b><span>手順 4 で AZ C を観測する</span></div>
+
+  <!-- 3 行目 -->
+  <div class="st" id="l3" data-self="1" style="left:24px;top:362px;width:288px;height:120px"><i>手順 4-3</i><b>インスタンスを起動する</b><span><code>run-instances</code><br>AZ A のサブネット</span></div>
+  <div class="st" id="r3" data-self="1" style="left:440px;top:362px;width:336px;height:120px"><b>ENI を検出する</b><span>AZ A のサブネットに<br>ENI ができた</span><img src="../icons/AmazonVPCElasticNetworkInterface.svg" alt=""></div>
+
+  <!-- 4 行目: 左は区間線とラベルだけ -->
+  <div class="tx iv" style="left:24px;top:500px"><b>平均 15〜20 分</b>AWS の CDK のテストの<br>コメントによる</div>
+  <div class="st hot" id="r4" data-self="1" style="left:440px;top:522px;width:336px;height:130px"><b>AZ A に EIP を関連付ける</b>
+    <div class="srow"><span class="sb">AZ A</span><span class="sb hot">succeeded</span></div>
+    <span>AZ A の外向きの通信を変換できる</span></div>
+
+  <!-- 区間線の両端（3 行目の左の箱の下端 y=486 から、4 行目の右の箱の中心 y=587 まで）。x=296 -->
+  <div class="span-l" id="ivT" data-self="1" style="left:288px;top:486px;width:16px;height:0"></div>
+  <div class="span-l" id="ivB" data-self="1" style="left:288px;top:587px;width:16px;height:0"></div>
+
+  <!-- 2 つの状態の注記 -->
+  <div class="card" style="left:0;top:700px;width:384px;height:140px">
+    <div class="h">NAT ゲートウェイ全体の状態</div>
+    <div class="body"><code>State</code><br><code>available</code> は NAT ゲートウェイ全体の状態。<br>どの AZ を扱うかは表さない</div>
+  </div>
+  <div class="card hot" style="left:416px;top:700px;width:384px;height:140px">
+    <div class="h">AZ ごとの EIP の状態</div>
+    <div class="body"><code>NatGatewayAddresses[].Status</code><br><code>succeeded</code> で、その AZ の外向きの<br>通信を変換できる</div>
+  </div>
+</div>
+<script>
+window.addEventListener('load', async () => { await document.fonts.ready;
+  wire('#l1', '#r1', {});                              // 1 行目（水平）
+  wire('#l2', '#r2', {dash: true});                    // 2 行目（点線。点線の箱へ）
+  wire('#l3', '#r3', {});                              // 3 行目（水平）
+  wire('#r3', '#r4', {from: 'b', to: 't'});            // 3 行目 → 4 行目（垂直、x=608）
+  // 区間線: 縦の線と両端の横の印（矢印なし）
+  const svg = document.getElementById('wires'), NS = 'http://www.w3.org/2000/svg';
+  for (const [pts, w] of [['296,486 296,587', 2.5], ['286,486 306,486', 2.5], ['286,587 306,587', 2.5]]) {
+    const p = document.createElementNS(NS, 'polyline');
+    p.setAttribute('points', pts); p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#ff4d00'); p.setAttribute('stroke-width', w);
+    svg.appendChild(p);
+  }
+  document.body.dataset.ready = '1';
+});
+</script>
+</body></html>

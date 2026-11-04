@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- billing: regional NAT ゲートウェイの料金がかかる場所（記事「仕組み」の「料金」）。
+     札の 1〜4 は、記事の料金の表の ①〜④ と同じ（article/aws-regional-nat-gateway.md の 205〜212 行目）:
+       1 NAT ゲートウェイの時間料金        1 時間 $0.062   NAT ゲートウェイが存在する間
+       2 NAT ゲートウェイのデータ処理料金  1 GB $0.062     NAT ゲートウェイが通信を処理したとき
+       3 パブリック IPv4 アドレスの料金    1 個 1 時間 $0.005  EIP を確保している間。使っているかどうかに関係なくかかる
+       4 データ転送の料金                  インターネットへの送信 1 GB $0.114（記事の表は AZ 間の転送 1 GB $0.01 も載せる。図の札には載せない）
+     単価: AWS Price List の AmazonEC2 と AWSDataTransfer 等の東京リージョン（ap-northeast-1）の値。2026-11-01 に取得（DESIGN 5.1）。
+       - APN1-RegionalNatGateway-Hours $0.062/時間、APN1-RegionalNatGateway-Bytes $0.062/GB（factsheet rng-069。zonal と同じ）
+       - APN1-PublicIPv4:InUseAddress / IdleAddress $0.005/時間（rng-073）
+       - APN1-DataTransfer-Out-Bytes $0.114/GB（グローバルの無料枠を超えた分の、月の最初の 10 TB）、APN1-DataTransfer-Regional-Bytes $0.01/GB（rng-074）
+     1 の時間料金に扱う AZ の数を掛けるかは、Price List の説明「Hourly charge for Regional NAT Gateways」からは分からない（rng-071 UNVERIFIABLE）。
+       そのため金額の合計は描かず、1 の札に「AZ ごとに数えるかは価格表に記載がない」と書く（記事の「扱う AZ の数を掛けるかどうかは書かれていません」と同じ内容）。
+     3: 自動モードで割り当てられる EIP にこの料金がかかるかは、筆者が調べた範囲では書かれていない（記事 222 行目、README 手順 5-5）。
+     座標（DESIGN 6.6 から調整。2026-11-04 の点検の指摘で詰めた）:
+       - 左の構成図: VPC 0〜430（内側 24〜406）、NAT ゲートウェイの箱 24〜406（y 264〜589）、EIP の札の中心 x=115・315、サブネット AZ A 24〜207・AZ B 223〜406。
+         宛先とインターネットゲートウェイの中心 x=215。インターネットゲートウェイのラベルは、札 4 と重ならないよう、アイコンの左に 2 行で置く。
+       - 右の札の列 x=448〜800（幅 352）。VPC の右辺から 18px 離す。上から 4 → 1 → 2 → 3（対応する部品が上から この順に並ぶため。DESIGN 批評 17）。
+       - 札から部品への線はすべて水平で、差し色の点線にして、通信の流れの黒い線と区別する。
+         札の高さ（4: 113、1: 137、2: 113、3: 161）を 16px 間隔で積む。札 4・1・2 の線は札の中心から引く。
+         札 4 の中心（y=147.5）は宛先とインターネットゲートウェイの間の線に、札 1・2 の中心（288.5・429.5）は NAT ゲートウェイの箱の右辺に当たる。
+         札 3 の線は、NAT ゲートウェイの箱を縦に間延びさせないよう、札の見出しの帯の高さ（y=523）から引き、2 つの EIP を囲む点線の枠（y 481〜565）の右辺に当てる。
+         EIP 1 個分ではなく、EIP の数だけ料金がかかることを示すため。
+       - 札 4 の本文は「インターネットへの送信」だけにした。AZ 間の転送の単価は、記事の料金の表で説明する。
+       - NAT ゲートウェイの箱の中の「AZ ごとに別の EIP で、その AZ の外向きの通信を変換する」は EC2 の API の説明（rng-044）。
+       - NAT ゲートウェイの箱からインターネットゲートウェイへの線は、箱の上辺から引く（箱の題と重ならないように）。
+       - 脚注の「グローバルの無料枠」は、記事の表と README と同じ呼び名。 -->
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="deepcuts.css">
+<link rel="stylesheet" href="rnat.css">
+<script src="wires.js"></script>
+<style>
+  #fig { width: 800px; height: 869px; }
+  .node { width: 128px; }
+  .igwl { position: absolute; font-size: 16px; font-weight: 900; white-space: nowrap; }
+  .pt { position: absolute; width: 0; height: 0; }
+  .card { width: 352px; left: 448px; box-sizing: border-box; }
+  .nw { white-space: nowrap; }
+  .eg { position: absolute; border: 2px dashed var(--grey); }
+  .card > .h { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 16px; }
+  .card > .h .n { background: var(--hot); color: #fff; font-family: var(--font-mono); font-weight: 800; font-size: 16px; width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center; flex: none; }
+  .card > .body .p { display: block; font-family: var(--font-mono); font-weight: 800; font-size: 18px; }
+  .card > .body .p small { font-family: var(--font-body); font-size: 16px; font-weight: 700; margin-right: 6px; }
+</style>
+</head><body>
+<div id="fig">
+  <svg id="wires"></svg>
+
+  <!-- 左の構成図 -->
+  <div class="node wide cx" id="dest" style="left:215px;top:0"><img src="../icons/Internet.svg"><div class="t">インターネット上の宛先</div></div>
+  <div class="pt" id="p4" data-self="1" style="left:215px;top:147.5px"></div>
+  <img id="igw" data-cross="1" src="../icons/AmazonVPCInternetGateway.svg" style="position:absolute;left:191px;top:184px;width:48px;height:48px;background:var(--bone)">
+  <div class="igwl" id="igwl" style="right:617px;top:150px;text-align:right;line-height:1.45">インターネット<br>ゲートウェイ</div>
+
+  <div class="fr vpc" style="left:0;top:208px;width:430px;height:595px">
+    <div class="gl"><img src="../icons/VirtualprivatecloudVPC.svg"><span class="ja">VPC</span></div>
+  </div>
+  <div class="fr nat" id="nat" style="left:24px;top:264px;width:382px;height:325px"></div>
+  <div class="pt" id="natT" data-self="1" style="left:215px;top:268px"></div>
+  <div class="pt" id="p1" data-self="1" style="left:403px;top:288.5px"></div>
+  <div class="pt" id="p2" data-self="1" style="left:403px;top:429.5px"></div>
+  <div class="nt" style="left:48px;top:288px"><img src="../icons/AmazonVPCNATGateway.svg"><b>regional NAT ゲートウェイ</b></div>
+  <div class="tx" style="left:48px;top:381px">AZ ごとに別の EIP で、<br>その AZ の外向きの通信を変換する</div>
+  <!-- 2 つの EIP を囲む点線の枠（札 3 の線が指す） -->
+  <div class="eg" id="eg" style="left:56px;top:481px;width:318px;height:84px"></div>
+  <div class="eip cx" id="eA" data-self="1" style="left:115px;top:505px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</div>
+  <div class="eip cx" id="eB" data-self="1" style="left:315px;top:505px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</div>
+
+  <div class="fr priv" style="left:24px;top:613px;width:183px;height:166px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ A</span></div>
+  </div>
+  <div class="node cx" id="iA" style="left:115px;top:669px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス</div></div>
+  <div class="fr priv" style="left:223px;top:613px;width:183px;height:166px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ B</span></div>
+  </div>
+  <div class="node cx" id="iB" style="left:315px;top:669px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス</div></div>
+
+  <!-- 右の札（上から 4 → 1 → 2 → 3） -->
+  <div class="card" id="c4" style="top:91px">
+    <div class="h"><span class="n">4</span>データ転送の料金</div>
+    <div class="body"><span class="p">1 GB $0.114</span>インターネットへの送信</div>
+  </div>
+  <div class="card" id="c1" style="top:220px">
+    <div class="h"><span class="n">1</span>NAT ゲートウェイの時間料金</div>
+    <div class="body"><span class="p">1 時間 $0.062</span>NAT ゲートウェイが存在する間。<br><span class="nw">AZ ごとに数えるかは価格表に記載がない</span></div>
+  </div>
+  <div class="card" id="c2" style="top:373px">
+    <div class="h"><span class="n">2</span>NAT ゲートウェイのデータ処理料金</div>
+    <div class="body"><span class="p">1 GB $0.062</span>NAT ゲートウェイが通信を処理したとき</div>
+  </div>
+  <div class="card" id="c3" style="top:502px">
+    <div class="h"><span class="n">3</span>パブリック IPv4 アドレスの料金</div>
+    <div class="body"><span class="p">1 個 1 時間 $0.005</span>EIP を確保している間。<br>自動モードの EIP にかかるかは<br>筆者が調べた範囲では書かれていない</div>
+  </div>
+  <div class="pt" id="p3" data-self="1" style="left:448px;top:523px"></div>
+
+  <div class="fn" style="top:821px;line-height:1.45">単価は 2026 年 11 月 1 日に取得した AWS Price List の東京リージョンの値<br>インターネットへの送信は、グローバルの無料枠を超えた分の、月の最初の 10 TB までの単価</div>
+</div>
+<script>
+window.addEventListener('load', async () => { await document.fonts.ready;
+  // 通信の流れ（黒）
+  wire('#iA', '#eA', {from: 't', to: 'b'});
+  wire('#iB', '#eB', {from: 't', to: 'b'});
+  wire('#natT', '#igw', {from: 't', to: 'b'});
+  wire('#igw', '#dest', {from: 't', to: 'b'});
+  // 札から部品へ（差し色の点線、水平）
+  wire('#c4', '#p4', {from: 'l', to: 'r', hot: true, dash: true});
+  wire('#c1', '#p1', {from: 'l', to: 'r', hot: true, dash: true});
+  wire('#c2', '#p2', {from: 'l', to: 'r', hot: true, dash: true});
+  wire('#p3', '#eg', {from: 'l', to: 'r', hot: true, dash: true});
+  document.body.dataset.ready = '1';
+});
+</script>
+</body></html>

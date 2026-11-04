@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- architecture: ハンズオンの構成図（README の「構築するアーキテクチャ」、記事「ハンズオンはこちら！」）。
+     本文との対応（README の 72〜80 行目）:
+       - あなたは CloudShell から aws ec2 のコマンドで EC2 の API を呼び出し、NAT ゲートウェイ・サブネット・ルート・インスタンス・EIP を操作する（手順 2〜6）。
+         aws ec2 get-console-output で、EC2 の API から確認の記録（コンソール出力）を読む。インスタンスへ直接接続するのではない
+         （GetConsoleOutput の Latest、DESIGN D-04・D-17）。そのため EC2 の API から VPC への線にはラベルを付けず、ノードの補足で意味を示す（DESIGN 批評 16）。
+       - 確認用のインスタンス A・B は、AZ A と AZ B のプライベートサブネットから 30 秒ごとに IP 確認用の関数を呼び出す。AZ C のサブネットにはインスタンスを置かない（手順 4 で比較）。
+       - IP 確認用の関数は VPC の外にあり、インターネットから呼び出せる関数 URL を持つ（AuthType NONE、D-03・D-20。AWS の CDK のテストと同じ方法、D-06・rng-085）。
+         関数は受け取った送信元 IP を CloudWatch Logs に書き、あなたは aws logs tail で読む（手順 5）。
+       - regional NAT ゲートウェイは手順 2 で自動モード、手順 6 で手動モード（CreateNatGateway の AvailabilityMode と AvailabilityZoneAddresses、rng-020・023）。
+         AZ ごとに別の EIP を使う（rng-044）。3 つのサブネットはルートテーブル aws-deepcuts-rnat-private-rt を共有し、
+         デフォルトルートを regional NAT ゲートウェイに向ける（rng-055、README の手順 3）。
+       - インターネットゲートウェイは setup.sh が VPC に取り付ける（rng-040）。VPC の CIDR は 10.0.0.0/16（setup.sh）。
+       - IAM ロール aws-deepcuts-rnat-echo-role は図に描かず、README の本文の 1 文で説明する（DESIGN 6.7、L031）。
+       - AWS Cloud の枠は使わない。入れ子を「リージョン ＞ VPC ＞ サブネット」の 3 段にして、24px の余白を守るため（DESIGN 6.0）。
+     手順の番号は README の章立て（手順 2〜6: EC2 の API、手順 5: aws logs tail）。README の番号が変わったら、ここも直す。
+     アイコン: AWSCloudShell、Region、AmazonEC2、AWSLambda、AmazonCloudWatchLogs、VirtualprivatecloudVPC、AmazonVPCInternetGateway、
+       AmazonVPCNATGateway、AmazonEC2ElasticIPAddress、Privatesubnet、AmazonEC2Instance。
+     座標（DESIGN 6.7 から調整）:
+       - あなたの操作のレーン 0〜800（y 0〜150）。ポート 1 の中心 x=194、ポート 2 の中心 x=606。
+       - VPC の枠の札も 2 行（VPC / 10.0.0.0/16）にした。EC2 の API から VPC の上辺への線（x=194）が CIDR の文字に重ならないように。
+       - 東京リージョンの枠の札は 2 行（東京リージョン / ap-northeast-1）。1 行にすると札の幅が約 286px になり、
+         ポート 1 から EC2 の API への縦の線（x=194）が札の文字に重なるため。
+       - 上の段のノード: EC2 の API（中心 x=194）、IP 確認用の関数（x=400）、CloudWatch Logs（x=606）。
+       - VPC 24〜776（内側 48〜752）、NAT ゲートウェイの箱 48〜752、EIP の札の中心 x=172・436、サブネット A 48〜296・B 312〜560・C 576〜752。
+       - インターネットゲートウェイのアイコン 48px の中心を VPC の上辺の x=400 に置く。NAT ゲートウェイの箱の上辺からインターネットゲートウェイ、
+         インターネットゲートウェイから IP 確認用の関数への線は x=400 の垂直の線。
+       - NAT ゲートウェイの箱の題の補足は「手順 2 は自動モード・手順 6 は手動モード」（箱の題に読点を使わない）。
+       - NAT ゲートウェイの箱の題は x=400 の線より左から始まるが、線は箱の上辺で止まるため重ならない。 -->
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="deepcuts.css">
+<link rel="stylesheet" href="rnat.css">
+<script src="wires.js"></script>
+<style>
+  #fig { width: 800px; height: 1179px; }
+  .lane > .lt { display: flex; align-items: center; gap: 10px; }
+  .lane > .lt img { width: 32px; height: 32px; display: block; }
+  .lane > .lt span { font-size: 16px; font-weight: 500; }
+  .port { position: absolute; width: 340px; height: 62px; border: 2px solid var(--ink); background: #fff; padding: 5px 12px; }
+  .port b { display: block; font-size: 17px; font-weight: 900; line-height: 1.35; white-space: nowrap; }
+  .port code { display: block; font-family: var(--font-mono); font-weight: 800; font-size: 15px; line-height: 1.45; white-space: nowrap; }
+  .fr > .gl .two { display: flex; flex-direction: column; line-height: 1.2; }
+  .igwl { position: absolute; font-size: 16px; font-weight: 900; white-space: nowrap; }
+  .pt { position: absolute; width: 0; height: 0; }
+  .card > .h code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; margin-left: 8px; }
+  .lbl { background: transparent; }
+</style>
+</head><body>
+<div id="fig">
+  <svg id="wires"></svg>
+
+  <!-- あなたの操作 -->
+  <div class="lane fr" style="left:0;top:0;width:800px;height:154px"><span class="lt"><img src="../icons/AWSCloudShell.svg">AWS CloudShell<span>あなたがコマンドを実行する</span></span></div>
+  <div class="port" id="p1" data-self="1" style="left:24px;top:68px"><b>EC2 の API を呼び出す</b><code>aws ec2 …</code></div>
+  <div class="port" id="p2" data-self="1" style="left:436px;top:68px"><b>関数の記録を読む</b><code>aws logs tail</code></div>
+  <div class="lbl step" style="left:206px;top:171px">手順 2〜6</div>
+  <div class="lbl step" style="left:618px;top:171px">手順 5</div>
+
+  <!-- 東京リージョン -->
+  <div class="fr region" style="left:0;top:210px;width:800px;height:929px">
+    <div class="gl"><img src="../icons/Region.svg"><span class="two"><span class="ja">東京リージョン</span><span class="code">ap-northeast-1</span></span></div>
+  </div>
+  <div class="node wide cx" id="ec2" style="left:194px;top:278px"><img src="../icons/AmazonEC2.svg"><div class="t">EC2 の API</div><div class="s">リソースを作成・操作する<br>コンソール出力を返す</div></div>
+  <div class="node cx" id="fn" style="left:400px;top:278px"><img src="../icons/AWSLambda.svg"><div class="t">IP 確認用の関数</div><div class="s">送信元 IP を返す</div></div>
+  <div class="node wide cx" id="logs" style="left:606px;top:278px"><img src="../icons/AmazonCloudWatchLogs.svg"><div class="t">CloudWatch Logs</div><div class="s">関数が受け取った送信元 IP</div></div>
+  <div class="lbl ink" style="left:436px;top:276px">送信元 IP を書く</div>
+
+  <!-- インターネットゲートウェイから関数への線のラベル（線の左、8px 離す） -->
+  <div class="lbl ink" style="right:410px;top:414px;text-align:right;line-height:1.45">インターネット経由で<br>関数 URL を呼び出す</div>
+
+  <!-- VPC -->
+  <div class="fr vpc" style="left:24px;top:494px;width:752px;height:621px">
+    <div class="gl"><img src="../icons/VirtualprivatecloudVPC.svg"><span class="two"><span class="ja">VPC</span><span class="code">10.0.0.0/16</span></span></div>
+  </div>
+  <div class="pt" id="ec2v" data-self="1" style="left:194px;top:498px"></div>
+  <img id="igw" data-cross="1" src="../icons/AmazonVPCInternetGateway.svg" style="position:absolute;left:376px;top:470px;width:48px;height:48px;background:var(--bone)">
+  <div class="igwl" style="left:432px;top:460px">インターネットゲートウェイ</div>
+
+  <div class="fr nat" style="left:48px;top:558px;width:704px;height:140px"></div>
+  <div class="pt" id="natT" data-self="1" style="left:400px;top:562px"></div>
+  <div class="nt" style="left:72px;top:582px"><img src="../icons/AmazonVPCNATGateway.svg"><b>regional NAT ゲートウェイ</b><span>手順 2 は自動モード・手順 6 は手動モード</span></div>
+  <div class="eip cx" id="eA" data-self="1" style="left:172px;top:638px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">AZ A の EIP</div>
+  <div class="eip cx" id="eB" data-self="1" style="left:436px;top:638px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">AZ B の EIP</div>
+
+  <div class="fr priv" style="left:48px;top:722px;width:248px;height:240px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ A</span></div>
+  </div>
+  <div class="node cx" id="iA" style="left:172px;top:778px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">確認用の<br>インスタンス A</div><div class="s">30 秒ごとに<br>関数を呼び出す</div></div>
+  <div class="fr priv" style="left:312px;top:722px;width:248px;height:240px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ B</span></div>
+  </div>
+  <div class="node cx" id="iB" style="left:436px;top:778px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">確認用の<br>インスタンス B</div><div class="s">30 秒ごとに<br>関数を呼び出す</div></div>
+  <div class="fr priv" style="left:576px;top:722px;width:176px;height:240px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ C</span></div>
+  </div>
+  <div class="tx cx" style="left:664px;top:780px;text-align:center"><b>サブネットだけ</b><br>手順 4 で比較</div>
+
+  <div class="card" style="left:48px;top:978px;width:704px">
+    <div class="h">ルートテーブル<code>aws-deepcuts-rnat-private-rt</code></div>
+    <div class="body"><code>0.0.0.0/0</code> <span class="op">→</span> regional NAT ゲートウェイ<br>3 つのサブネットが共有する</div>
+  </div>
+
+  <div class="fn" style="top:1155px">AZ A・AZ B・AZ C は setup.sh が選ぶ 3 つの AZ。実際の名前はアカウントによって異なる</div>
+</div>
+<script>
+window.addEventListener('load', async () => { await document.fonts.ready;
+  wire('#p1', '#ec2', {from: 'b', to: 't'});                 // 手順 2〜6: EC2 の API を呼び出す（x=194）
+  wire('#p2', '#logs', {from: 'b', to: 't'});                // 手順 5: aws logs tail（x=606）
+  wire('#ec2', '#ec2v', {from: 'b', to: 't'});               // EC2 の API → VPC の上辺（ラベルなし）
+  wire('#fn', '#logs', {});                                  // 関数 → CloudWatch Logs（水平）
+  wire('#iA', '#eA', {from: 't', to: 'b'});                  // インスタンス A → AZ A の EIP（x=172）
+  wire('#iB', '#eB', {from: 't', to: 'b'});                  // インスタンス B → AZ B の EIP（x=436）
+  wire('#natT', '#igw', {from: 't', to: 'b'});               // NAT ゲートウェイ → インターネットゲートウェイ（x=400）
+  wire('#igw', '#fn', {from: 't', to: 'b', dash: true});     // インターネット経由で関数 URL を呼び出す（x=400）
+  document.body.dataset.ready = '1';
+});
+</script>
+</body></html>

@@ -1,0 +1,67 @@
+/* AWS Deep Cuts の図の部品。diagram.css（Kenta-Matsuda/slide-template）に足して使う。
+   記事と README の本文幅（約 800px）に縮まない幅で描く前提で、文字を一段大きくしている。
+   使い方: <link rel="stylesheet" href="diagram.css"><link rel="stylesheet" href="deepcuts.css"> */
+
+/* 記事の本文幅に合わせた図の幅（各図の <style> で高さだけ決める） */
+#fig { width: 800px; }
+
+/* ノード（アイコン＋名前）：本文幅で読める大きさにする */
+.node { width: 150px; }
+.node .t { font-size: 18px; }
+.node .s { font-size: 16px; }
+.lbl { font-size: 16px; }
+.box { font-size: 17px; }
+.box small { font-size: 15px; }
+
+/* カード：見出しの帯＋本文。コードや JSON の抜粋に使う */
+.card { position: absolute; border: 3px solid var(--ink); background: #fff; }
+.card > .h { background: var(--ink); color: #fff; font-size: 17px; font-weight: 900; padding: 6px 12px; }
+.card.hot { border-color: var(--hot); }
+.card.hot > .h { background: var(--hot); }
+.card > pre { margin: 0; padding: 10px 12px; font-family: var(--font-mono); font-weight: 500; font-size: 15px; line-height: 1.5; white-space: pre; }
+.card > pre b { color: var(--hot); font-weight: 800; }
+.card > pre i { color: var(--grey); font-style: normal; }
+.card > .body { padding: 10px 12px; font-size: 16px; font-weight: 500; line-height: 1.5; }
+
+/* 手順の箱：番号・題・説明。右上にアイコンを置ける */
+.st { position: absolute; border: 3px solid var(--ink); background: #fff; padding: 8px 12px; }
+.st.hot { border-color: var(--hot); border-width: 4px; }
+.st.ink { background: var(--ink); color: #fff; }
+.st > i { font-style: normal; font-family: var(--font-mono); font-weight: 800; font-size: 16px; color: var(--hot); }
+.st > b { display: block; font-size: 19px; font-weight: 900; margin-top: 2px; line-height: 1.3; }
+.st > span { display: block; margin-top: 4px; font-size: 16px; font-weight: 500; line-height: 1.45; }
+.st code, .card code, .box code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+.st > img { position: absolute; right: 10px; top: 10px; width: 36px; height: 36px; }
+
+/* 誰が行うかの枠：人が行う操作（灰色の点線）と、AWS が自動で行う処理（差し色の点線） */
+.lane { position: absolute; border: 2px dashed var(--grey); }
+.lane.aws { border-color: var(--hot); }
+.lane > .lt { position: absolute; left: 14px; top: 8px; font-size: 17px; font-weight: 900; }
+.lane.aws > .lt { color: var(--hot); }
+
+/* 段の見出し（図の中の小見出し） */
+.rowl { position: absolute; font-size: 17px; font-weight: 900; }
+.rowl em { font-style: normal; color: var(--hot); }
+
+/* 状態の箱（状態遷移図） */
+.state { position: absolute; border: 3px solid var(--ink); background: #fff; font-family: var(--font-mono); font-weight: 800; font-size: 17px;
+  display: flex; align-items: center; justify-content: center; text-align: center; }
+.state.hot { background: var(--hot); border-color: var(--hot); color: #fff; }
+.state.ink { background: var(--ink); color: #fff; }
+.state.dim { border-color: var(--line); color: var(--grey); }
+
+/* 小さな札 */
+.chip { position: absolute; font-family: var(--font-mono); font-weight: 800; font-size: 14px; letter-spacing: .04em; background: var(--ink); color: #fff; padding: 2px 8px; }
+.chip.hot { background: var(--hot); }
+.chip.line { background: #fff; color: var(--ink); border: 2px solid var(--ink); }
+
+/* 表のような図（料金の内訳など） */
+.tbl { position: absolute; border-collapse: collapse; background: #fff; font-size: 16px; }
+.tbl th { text-align: left; font-size: 15px; color: var(--grey); font-weight: 700; padding: 6px 10px; border-bottom: 3px solid var(--ink); background: var(--bone); }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; font-weight: 500; line-height: 1.4; }
+.tbl td b { font-weight: 900; }
+.tbl tr.hot td { background: #ffe9df; }
+.tbl .num { text-align: right; font-family: var(--font-mono); font-weight: 800; white-space: nowrap; }
+
+/* 記号は潰れない書体で（L043） */
+.op { font-family: var(--font-mono); font-weight: 800; }

@@ -1,0 +1,4 @@
+# setup.sh が作成するファイル。egress-check.sh には IP 確認用の関数の URL とトークンが入る
+egress-check.sh
+echo.zip
+resource-ids.env

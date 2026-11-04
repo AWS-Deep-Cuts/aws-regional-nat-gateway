@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- packet-flow: 1 回の通信で起きること（記事「仕組み」の「1 回の通信で起きること」、README の手順 5-2）。
+     図の番号 1〜5 は、記事の番号つきの説明（article/aws-regional-nat-gateway.md の 112〜116 行目）と同じ:
+       1 AZ A のインスタンスが、送信元をプライベート IP アドレスの 10.0.1.23 として通信を送る
+       2 サブネットのルートテーブルの 0.0.0.0/0 のルートが NAT ゲートウェイの ID を指しているため、通信は NAT ゲートウェイに届く
+         （regional NAT ゲートウェイでは、どの AZ のサブネットのルートも同じ ID を指す）
+       3 NAT ゲートウェイが、送信元を AZ A の EIP の 203.0.113.10 に書き換える
+       4 通信は、インターネットゲートウェイを通って宛先に届く
+       5 宛先から見た送信元 IP は 203.0.113.10。同じ時刻に AZ B のインスタンスが送った通信の送信元 IP は、AZ B の EIP の 198.51.100.20
+     AZ B は灰色で描き、インスタンス B → EIP B の札だけを灰色の点線で描く（インターネットゲートウェイへの線は描かない。線の交差を避ける）。
+     根拠: NatGatewayAddresses の各要素に AvailabilityZone・PublicIp・Status が入る（DescribeNatGateways、factsheet rng-036）。
+       regional NAT ゲートウェイは AZ ごとに別の EIP を使う（rng-044）。ルートは CreateRoute の NatGatewayId で NAT ゲートウェイを指し、
+       regional ではすべての AZ のプライベートサブネットが同じ ID を指す（rng-055）。
+     説明用の値（DESIGN 2.0）: AZ A = ap-northeast-1a、AZ B = ap-northeast-1c、NAT ゲートウェイの ID nat-0123456789abcdef0、
+       EIP 203.0.113.10（AZ A）・198.51.100.20（AZ B）、プライベート IP 10.0.1.23・10.0.2.45。
+     座標（DESIGN 6.3 から調整）:
+       - 番号の説明の列は x=0〜224（VPC の枠の外の左）。VPC は 240〜800、サブネット A 264〜504、サブネット B 536〜776。
+       - 縦の線はすべて x=384（宛先・インターネットゲートウェイ・EIP A の札・インスタンス A の中心）。
+       - サブネットの枠の札は「AZ A」「AZ B」だけにした（用語集の「AZ A などの AZ の名前」）。ap-northeast-1a を札に足すと、
+         x=384 の縦の線が札の文字に重なるため。AZ の名前の対応は脚注に書く（記事の「図の AZ A は ap-northeast-1a、AZ B は ap-northeast-1c」）。
+       - NAT ゲートウェイの箱の題は、x=384 の縦の線に重ならないよう、箱の右側（x=440 から）に置いた。
+       - 各説明の箱の中心の高さを、対応する部品（宛先の中心 36、インターネットゲートウェイの中心 168、EIP A の札の中心 322、
+         NAT ゲートウェイの箱とサブネットの枠の間の線の中ほど 408、インスタンス A の中心 536）にそろえた。
+         箱どうしを 16px 以上空けるため、NAT ゲートウェイの箱とサブネットの枠の間を 88px 空けている。
+       - 「宛先から見た送信元」のカードとインターネットゲートウェイのラベルの間を空けるため、VPC の上辺を y=168 に置いた。
+       - 部品の側の番号の札（.num）は、線とアイコンから 8px 以上離し、枠線に重ねない。 -->
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="deepcuts.css">
+<link rel="stylesheet" href="rnat.css">
+<script src="wires.js"></script>
+<style>
+  #fig { width: 800px; height: 864px; }
+  .fn code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+  .nb { position: absolute; left: 0; width: 224px; transform: translateY(-50%); border: 2px solid var(--ink); background: #fff;
+    padding: 8px 10px; display: flex; gap: 10px; align-items: flex-start; }
+  .nb i { font-style: normal; font-family: var(--font-mono); font-weight: 800; font-size: 18px; color: var(--hot); line-height: 22px; }
+  .nb span { font-size: 16px; font-weight: 700; line-height: 22px; white-space: nowrap; }
+  .nb code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+  .nb.hot { border: 3px solid var(--hot); }
+  .num { transform: translateY(-50%); }
+  .igwl { position: absolute; font-size: 16px; font-weight: 900; white-space: nowrap; }
+  .node .s code { color: var(--ink); }
+  .node.dim .s code { color: var(--grey); }
+  .card .body .g { color: var(--grey); }
+</style>
+</head><body>
+<div id="fig">
+  <svg id="wires"></svg>
+
+  <!-- 番号の説明（記事の 1〜5）。中心の高さを部品にそろえる -->
+  <div class="nb" style="top:36px"><i>5</i><span>宛先から見た送信元は<br><code>203.0.113.10</code></span></div>
+  <div class="nb" style="top:168px"><i>4</i><span>インターネット<br>ゲートウェイを通る</span></div>
+  <div class="nb hot" style="top:322px"><i>3</i><span>AZ A の EIP に<br>送信元を書き換える</span></div>
+  <div class="nb" style="top:408px"><i>2</i><span>ルートテーブルで<br>NAT ゲートウェイに届く</span></div>
+  <div class="nb" style="top:536px"><i>1</i><span>送信元 <code>10.0.1.23</code> で<br>通信を送る</span></div>
+
+  <!-- 宛先と、宛先から見た送信元 -->
+  <div class="node wide cx" id="dest" style="left:384px;top:8px"><img src="../icons/Internet.svg"><div class="t">インターネット上の宛先</div></div>
+  <div class="num" style="left:316px;top:36px">5</div>
+  <div class="card" style="left:496px;top:8px;width:280px">
+    <div class="h">宛先から見た送信元</div>
+    <div class="body">AZ A から <code>203.0.113.10</code><br><span class="g">AZ B から <code>198.51.100.20</code></span></div>
+  </div>
+
+  <!-- VPC とインターネットゲートウェイ -->
+  <div class="fr vpc" style="left:240px;top:168px;width:560px;height:632px">
+    <div class="gl"><img src="../icons/VirtualprivatecloudVPC.svg"><span class="ja">VPC</span></div>
+  </div>
+  <img id="igw" data-cross="1" src="../icons/AmazonVPCInternetGateway.svg" style="position:absolute;left:360px;top:144px;width:48px;height:48px;background:var(--bone)">
+  <div class="igwl" style="left:416px;top:134px">インターネットゲートウェイ</div>
+  <div class="num" style="left:320px;top:146px">4</div>
+
+  <!-- regional NAT ゲートウェイの箱。題は右側に置き、x=384 の縦の線を空ける -->
+  <div class="fr nat" style="left:264px;top:224px;width:512px;height:140px"></div>
+  <div class="nt" style="left:440px;top:248px"><img src="../icons/AmazonVPCNATGateway.svg"><b>regional NAT ゲートウェイ</b></div>
+  <div class="eip hot cx" id="eipA" data-self="1" style="left:384px;top:304px"><img src="../icons/AmazonEC2ElasticIPAddress.svg"><code>203.0.113.10</code></div>
+  <div class="num" style="left:474px;top:322px">3</div>
+  <div class="eip dim cx" id="eipB" data-self="1" style="left:656px;top:304px"><img src="../icons/AmazonEC2ElasticIPAddress.svg"><code>198.51.100.20</code></div>
+
+  <div class="num" style="left:396px;top:408px">2</div>
+
+  <!-- サブネット A（AZ A）とサブネット B（AZ B、灰色） -->
+  <div class="fr priv" style="left:264px;top:452px;width:240px;height:186px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ A</span></div>
+  </div>
+  <div class="node cx" id="instA" style="left:384px;top:508px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス A</div><div class="s"><code>10.0.1.23</code></div></div>
+  <div class="num" style="left:420px;top:536px">1</div>
+
+  <div class="fr priv dim" style="left:536px;top:452px;width:240px;height:186px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ B</span></div>
+  </div>
+  <div class="node dim cx" id="instB" style="left:656px;top:508px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス B</div><div class="s"><code>10.0.2.45</code></div></div>
+
+  <!-- ルートテーブル（2 つのサブネットで共有） -->
+  <div class="card" style="left:264px;top:662px;width:512px">
+    <div class="h">ルートテーブル</div>
+    <div class="body"><code>0.0.0.0/0</code> <span class="op">→</span> <code>nat-0123456789abcdef0</code><br>AZ A と AZ B のサブネットのルートが同じ ID を指す</div>
+  </div>
+
+  <div class="fn" style="top:816px;line-height:1.45">AZ A は <code>ap-northeast-1a</code>、AZ B は <code>ap-northeast-1c</code><br>応答は逆の順で戻る。AZ の名前と IP アドレスと ID は説明用の例</div>
+</div>
+<script>
+window.addEventListener('load', async () => { await document.fonts.ready;
+  const svg = document.getElementById('wires');
+  svg.querySelector('defs').insertAdjacentHTML('beforeend',
+    '<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8a877f"/></marker>');
+  wire('#instA', '#eipA', {from: 't', to: 'b'});      // 1 → 2 → 3: インスタンス A → EIP A の札（x=384）
+  wire('#eipA', '#igw', {from: 't', to: 'b'});        // 3 → 4: NAT ゲートウェイ → インターネットゲートウェイ（x=384）
+  wire('#igw', '#dest', {from: 't', to: 'b'});        // 4 → 5: インターネットゲートウェイ → 宛先（x=384）
+  wire('#instB', '#eipB', {from: 't', to: 'b', dash: true});   // AZ B（灰色の点線）
+  const g = svg.lastElementChild; g.setAttribute('stroke', '#8a877f'); g.setAttribute('marker-end', 'url(#ag)');
+  document.body.dataset.ready = '1';
+});
+</script>
+</body></html>

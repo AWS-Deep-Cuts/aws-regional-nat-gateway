@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "description": "構成図（img/src/*.html）を PNG に書き出すための道具。ハンズオンの実行には不要です。",
+  "scripts": {
+    "diagrams": "node render-diagrams.cjs",
+    "icons": "node icons.cjs"
+  },
+  "devDependencies": {
+    "aws-icons": "^3.3.0",
+    "puppeteer-core": "^24.43.1"
+  }
+}

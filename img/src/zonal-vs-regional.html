@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- zonal-vs-regional: AZ ごとに zonal NAT ゲートウェイを配置する構成（上の段）と、regional NAT ゲートウェイの構成（下の段）
+     （記事「Regional NAT Gatewayとは？」の図。article/aws-regional-nat-gateway.md の 47〜53 行目）。
+     上下の段を同じ枠組み・同じ x で描き、NAT ゲートウェイ・パブリックサブネット・EIP・ルートテーブルの数を「部品の数」のカードで示す。
+     EIP は下の段でも AZ の数（2）のままで、数が減らないため差し色にしない（記事の「AZ ごとにそろえる 4 つ」に合わせて行を置く）。
+     根拠:
+       - 上の段: AWS 公式の Agent Skill creating-production-vpc-multi-az は、パブリックサブネットごとに NAT ゲートウェイを作成し、
+         各プライベートサブネットのルートテーブルを対応する NAT ゲートウェイに向ける（factsheet rng-004）。
+       - 下の段: regional NAT ゲートウェイはサブネットではなく VPC を指定して作成し（CreateNatGateway の VpcId と AvailabilityMode、rng-020・021）、
+         VPC の複数の AZ にまたがって動く（rng-002）。どの AZ のプライベートサブネットも同じ NAT ゲートウェイの ID にルートを向ける（CreateRoute の NatGatewayId、rng-055）。
+         AZ ごとに別の EIP を使う（rng-044）。パブリックサブネットを必要としない（AWS の CDK の README とコードのコメント、rng-056 NEEDS_NUANCE）。
+       - インターネットゲートウェイ: AWS の CDK と Terraform の例とテストは、regional NAT ゲートウェイでもインターネットゲートウェイを先に取り付けている（rng-040 NEEDS_NUANCE）。
+         「必要」とは書かず、脚注で「例に合わせて描いている」と断る（DESIGN 批評 5）。
+       - 下の段のルートテーブルは 2 つの AZ のサブネットで共有する。記事は「AZ ごとのルートテーブルを残す構成もとれる」と本文で補っている（rng-084 の CDK の実装は共有しない場合もある）。
+     AZ の名前 ap-northeast-1a・ap-northeast-1c は説明用の例（DESIGN 2.0）。
+     座標（DESIGN 6.2 から調整）:
+       - 横の割り付けは DESIGN のとおり。VPC 0〜800、列 A のサブネットの枠 24〜392、列 B 408〜776。
+       - サブネットの枠の札は 2 行（1 行目にサブネットの種類、2 行目に AZ の名前）にした。1 行にすると札の幅が約 344px になり、
+         DESIGN のアイコンの中心 x=76 / 460 では、インスタンスから上へ向かう縦の矢印が札の文字に重なるため。
+         アイコンと矢印の x は、札（幅約 200px）より右の 320 / 704 にそろえ、文字はアイコンの左に置いた（上下の段で共通）。
+       - インターネットゲートウェイのアイコン 48px の中心を VPC の上辺の x=400 に置き、ラベルは枠の外のアイコンの右（8px 離す）。
+       - NAT ゲートウェイからインターネットゲートウェイへの線は描かない（折れ曲がりが要るため。DESIGN 6.2）。
+       - 枠と中身の間は 24px 以上（札の下端からも 24px）。枠どうしは 16px 以上。 -->
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="deepcuts.css">
+<link rel="stylesheet" href="rnat.css">
+<script src="wires.js"></script>
+<style>
+  #fig { width: 800px; height: 1336px; }
+  .fr > .gl .two { display: flex; flex-direction: column; line-height: 1.2; }
+  .row { position: absolute; display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+  .row img.ic { width: 40px; height: 40px; display: block; }
+  .row b { font-size: 18px; font-weight: 900; }
+  .igwl { position: absolute; font-size: 16px; font-weight: 900; white-space: nowrap; }
+  .cnt { display: grid; grid-template-columns: auto 48px; row-gap: 2px; }
+  .cnt span:nth-child(even) { font-family: var(--font-mono); font-weight: 800; font-size: 17px; text-align: right; }
+  .cnt.hot span:nth-child(even) { color: var(--hot); }
+  .cnt.hot span.same { color: var(--ink); }
+</style>
+</head><body>
+<div id="fig">
+  <svg id="wires"></svg>
+
+  <!-- ===== 上の段: AZ ごとに zonal NAT ゲートウェイを配置する構成 ===== -->
+  <div class="rowl" style="left:0;top:0">AZ ごとに zonal NAT ゲートウェイを配置する構成</div>
+  <div class="igwl" style="left:432px;top:26px">インターネットゲートウェイ</div>
+  <img data-cross="1" src="../icons/AmazonVPCInternetGateway.svg" style="position:absolute;left:376px;top:40px;width:48px;height:48px;background:var(--bone)">
+  <div class="fr vpc" style="left:0;top:64px;width:800px;height:356px">
+    <div class="gl"><img src="../icons/VirtualprivatecloudVPC.svg"><span class="ja">VPC</span></div>
+  </div>
+
+  <div class="fr pub" style="left:24px;top:120px;width:368px;height:130px">
+    <div class="gl"><img src="../icons/Publicsubnet.svg"><span class="two"><span class="ja">パブリックサブネット</span><span class="az">ap-northeast-1a</span></span></div>
+  </div>
+  <div class="row" style="right:460px;top:184px"><span class="eip" style="position:static"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</span><b>NAT ゲートウェイ</b><img class="ic" id="ztA" src="../icons/AmazonVPCNATGateway.svg"></div>
+  <div class="fr pub" style="left:408px;top:120px;width:368px;height:130px">
+    <div class="gl"><img src="../icons/Publicsubnet.svg"><span class="two"><span class="ja">パブリックサブネット</span><span class="az">ap-northeast-1c</span></span></div>
+  </div>
+  <div class="row" style="right:76px;top:184px"><span class="eip" style="position:static"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</span><b>NAT ゲートウェイ</b><img class="ic" id="ztB" src="../icons/AmazonVPCNATGateway.svg"></div>
+
+  <div class="fr priv" style="left:24px;top:266px;width:368px;height:130px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="two"><span class="ja">プライベートサブネット</span><span class="az">ap-northeast-1a</span></span></div>
+  </div>
+  <div class="row" style="right:460px;top:330px"><b>インスタンス</b><img class="ic" id="ziA" src="../icons/AmazonEC2Instance.svg"></div>
+  <div class="fr priv" style="left:408px;top:266px;width:368px;height:130px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="two"><span class="ja">プライベートサブネット</span><span class="az">ap-northeast-1c</span></span></div>
+  </div>
+  <div class="row" style="right:76px;top:330px"><b>インスタンス</b><img class="ic" id="ziB" src="../icons/AmazonEC2Instance.svg"></div>
+
+  <div class="card" style="left:0;top:436px;width:440px;height:168px">
+    <div class="h">AZ ごとのルートテーブル</div>
+    <div class="body"><code>0.0.0.0/0</code> <span class="op">→</span> 同じ AZ の NAT ゲートウェイ</div>
+  </div>
+  <div class="card" style="left:472px;top:436px;width:328px;height:168px">
+    <div class="h">部品の数</div>
+    <div class="body cnt"><span>NAT ゲートウェイ</span><span>2</span><span>パブリックサブネット</span><span>2</span><span>EIP</span><span>2</span><span>ルートテーブル</span><span>2</span></div>
+  </div>
+
+  <!-- ===== 下の段: regional NAT ゲートウェイの構成 ===== -->
+  <div class="rowl" style="left:0;top:650px"><em>regional NAT ゲートウェイ</em>の構成</div>
+  <div class="igwl" style="left:432px;top:676px">インターネットゲートウェイ</div>
+  <img data-cross="1" src="../icons/AmazonVPCInternetGateway.svg" style="position:absolute;left:376px;top:690px;width:48px;height:48px;background:var(--bone)">
+  <div class="fr vpc" style="left:0;top:714px;width:800px;height:374px">
+    <div class="gl"><img src="../icons/VirtualprivatecloudVPC.svg"><span class="ja">VPC</span></div>
+  </div>
+
+  <div class="fr nat" style="left:24px;top:770px;width:752px;height:140px"></div>
+  <div class="nt" style="left:51px;top:797px"><img src="../icons/AmazonVPCNATGateway.svg"><b>regional NAT ゲートウェイ</b><span>VPC に 1 つ</span></div>
+  <div class="eip cx" id="reA" data-self="1" style="left:320px;top:850px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</div>
+  <div class="eip cx" id="reB" data-self="1" style="left:704px;top:850px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</div>
+
+  <div class="fr priv" style="left:24px;top:934px;width:368px;height:130px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="two"><span class="ja">プライベートサブネット</span><span class="az">ap-northeast-1a</span></span></div>
+  </div>
+  <div class="row" style="right:460px;top:998px"><b>インスタンス</b><img class="ic" id="riA" src="../icons/AmazonEC2Instance.svg"></div>
+  <div class="fr priv" style="left:408px;top:934px;width:368px;height:130px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="two"><span class="ja">プライベートサブネット</span><span class="az">ap-northeast-1c</span></span></div>
+  </div>
+  <div class="row" style="right:76px;top:998px"><b>インスタンス</b><img class="ic" id="riB" src="../icons/AmazonEC2Instance.svg"></div>
+
+  <div class="card hot" style="left:0;top:1104px;width:440px;height:168px">
+    <div class="h">共有するルートテーブル</div>
+    <div class="body"><code>0.0.0.0/0</code> <span class="op">→</span> regional NAT ゲートウェイ<br>2 つの AZ のサブネットで共有する</div>
+  </div>
+  <div class="card hot" style="left:472px;top:1104px;width:328px;height:168px">
+    <div class="h">部品の数</div>
+    <div class="body cnt hot"><span>NAT ゲートウェイ</span><span>1</span><span>パブリックサブネット</span><span>0</span><span>EIP</span><span class="same">2</span><span>ルートテーブル</span><span>1</span></div>
+  </div>
+
+  <div class="fn" style="top:1288px;line-height:1.45">パブリックサブネットが不要なことは、AWS の CDK の文書による<br>インターネットゲートウェイは、AWS の CDK と Terraform の例に合わせて描いている</div>
+</div>
+<script>
+window.addEventListener('load', async () => { await document.fonts.ready;
+  // 上の段: 各列のインスタンス → 同じ列の NAT ゲートウェイ（垂直、x=320 / 704）
+  wire('#ziA', '#ztA', {from: 't', to: 'b'});
+  wire('#ziB', '#ztB', {from: 't', to: 'b'});
+  // 下の段: 各列のインスタンス → 真上の EIP の札（垂直、上の段と同じ x）
+  wire('#riA', '#reA', {from: 't', to: 'b'});
+  wire('#riB', '#reB', {from: 't', to: 'b'});
+  document.body.dataset.ready = '1';
+});
+</script>
+</body></html>

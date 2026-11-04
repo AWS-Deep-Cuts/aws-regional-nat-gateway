@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- auto-vs-manual: 自動モードと手動モード（記事「仕組み」の「手動モード」、README の手順 6）。
+     左右 2 列の同じ枠組みで、EIP をどう決めるか、どの AZ を扱うかの違いと、手動モードで指定していない AZ からは外へ出られないことを示す。
+     本文との対応（article/aws-regional-nat-gateway.md の 174〜191 行目、README の手順 6）:
+       - 自動モード: --availability-zone-addresses を省く。NAT ゲートウェイが AZ に自動で拡張され、EIP は NAT ゲートウェイが割り当てる
+         （AWS の CDK のテストのコメント「自分でアドレスを割り当てる」。「AWS が用意する」とは書かない。DESIGN 批評 12、factsheet rng-058 の出典と同じテスト）。
+         記事と同じく出典を添えるため、その下に灰色で「AWS の CDK のテストのコメントによる」と書く。
+       - 手動モード: --availability-zone-addresses で AZ と EIP の割り当て ID を指定する（rng-023、rng-024）。図は README の手順 6-2 と同じく AZ A と EIP A だけを指定した状態。
+         指定した AZ だけを扱い（rng-023「手動では AZ の範囲を自分で管理する」）、指定していない AZ のサブネットからのデフォルトルートは
+         「実行時に通信を通さない」（AWS の CDK の文書、rng-049 NEEDS_NUANCE）。そのため「外へ出られない」に「AWS の CDK の文書による」を添える。
+       - 右下の点線の箱: AssociateNatGatewayAddress に AZ と EIP の割り当て ID を指定して AZ を足す（rng-044、README の手順 6-5、記事「図の右下の箱が、この操作です」）。
+       - AutoProvisionZones・AutoScalingIps の enabled / disabled は、Terraform のテストの値（rng-035 NEEDS_NUANCE）。図の左下の脚注に書く。
+         AutoProvisionZones・AutoScalingIps は DescribeNatGateways の応答の読み取り専用の項目（rng-032、rng-034）。
+     座標（DESIGN 6.5 のとおり）:
+       - 左の列 0〜384、右の列 416〜800。NAT ゲートウェイの箱は列の幅いっぱい（内側 24〜360 / 440〜776）。
+       - サブネットの枠 AZ A・AZ B は 0・200 / 416・616 から幅 184（内側 136。インスタンスの .node は幅 128）。
+       - EIP の札とインスタンスの中心 x は 92・292 / 508・708。矢印はすべて垂直。
+       - NAT ゲートウェイの箱（高さ 286）とサブネットの枠の間は 64px。右の列の AZ B は、インスタンスの上辺から上へ差し色の短い線を引き、帯の中ほどに × を置く。
+       - 「外へ出られない」と「AWS の CDK の文書による」は、サブネット B の枠の中、インスタンスの下に置く（枠の外に出さない）。 -->
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="deepcuts.css">
+<link rel="stylesheet" href="rnat.css">
+<script src="wires.js"></script>
+<style>
+  #fig { width: 800px; height: 842px; }
+  .ct { position: absolute; white-space: nowrap; line-height: 1.5; }
+  .ct b { display: block; font-size: 19px; font-weight: 900; }
+  .ct b.hot { color: var(--hot); }
+  .ct span { font-size: 16px; font-weight: 500; }
+  .ct code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+  .props { position: absolute; font-size: 16px; font-weight: 500; line-height: 1.5; white-space: nowrap; }
+  .props code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+  .props b { font-weight: 900; }
+  .node { width: 128px; }
+  .x { position: absolute; color: var(--hot); font-size: 30px; font-family: var(--font-body); font-weight: 900; line-height: 1; transform: translate(-50%, -50%); }
+  .fn code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+  .tx .src { color: var(--grey); }
+  .st.q { border: 2px dashed var(--grey); background: transparent; }
+  .st.q > span code { font-size: 15px; }
+</style>
+</head><body>
+<div id="fig">
+  <svg id="wires"></svg>
+
+  <!-- ===== 左の列: 自動モード ===== -->
+  <div class="ct" style="left:0;top:0"><b>自動モード</b><span><code>--availability-zone-addresses</code> を省く</span></div>
+  <div class="fr nat ink" style="left:0;top:72px;width:384px;height:286px"></div>
+  <div class="nt" style="left:24px;top:96px"><img src="../icons/AmazonVPCNATGateway.svg"><b>regional NAT ゲートウェイ</b></div>
+  <div class="props" style="left:24px;top:148px"><code>AutoProvisionZones enabled</code><br><code>AutoScalingIps enabled</code><br><b>AZ に自動で拡張される</b></div>
+  <div class="tx" style="left:24px;top:234px">EIP は NAT ゲートウェイが割り当てる<br><span class="src">AWS の CDK のテストのコメントによる</span></div>
+  <div class="eip cx" id="aeA" data-self="1" style="left:92px;top:298px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</div>
+  <div class="eip cx" id="aeB" data-self="1" style="left:292px;top:298px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP</div>
+
+  <div class="fr priv" style="left:0;top:422px;width:184px;height:249px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ A</span></div>
+  </div>
+  <div class="node cx" id="aiA" style="left:92px;top:478px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス</div></div>
+  <div class="fr priv" style="left:200px;top:422px;width:184px;height:249px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ B</span></div>
+  </div>
+  <div class="node cx" id="aiB" style="left:292px;top:478px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス</div></div>
+
+  <div class="fn" style="top:695px;line-height:1.45"><code>enabled</code> と <code>disabled</code> は、<br>Terraform のテストでの値</div>
+
+  <!-- ===== 右の列: 手動モード（AZ A と EIP A だけを指定） ===== -->
+  <div class="ct" style="left:416px;top:0"><b class="hot">手動モード</b><span><code>--availability-zone-addresses</code> を指定</span></div>
+  <div class="fr nat" style="left:416px;top:72px;width:384px;height:286px"></div>
+  <div class="nt" style="left:440px;top:96px"><img src="../icons/AmazonVPCNATGateway.svg"><b>regional NAT ゲートウェイ</b></div>
+  <div class="props" style="left:440px;top:148px"><code>AutoProvisionZones disabled</code><br><code>AutoScalingIps disabled</code><br><b>指定した AZ だけを扱う</b></div>
+  <div class="tx" style="left:440px;top:234px">あなたが確保した EIP</div>
+  <div class="eip hot cx" id="meA" data-self="1" style="left:508px;top:298px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">EIP A</div>
+
+  <div class="fr priv" style="left:416px;top:422px;width:184px;height:249px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ A</span></div>
+  </div>
+  <div class="node cx" id="miA" style="left:508px;top:478px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス</div></div>
+  <div class="fr priv" style="left:616px;top:422px;width:184px;height:249px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">AZ B</span></div>
+  </div>
+  <div class="node cx" id="miB" style="left:708px;top:478px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス</div></div>
+  <div class="tx cx" style="left:708px;top:575px;text-align:center"><b style="color:var(--hot)">外へ出られない</b><br>AWS の CDK の<br>文書による</div>
+  <!-- × は NAT ゲートウェイの箱の下辺（358）とサブネットの枠の上辺（422）の間の帯の中ほど -->
+  <div class="x" style="left:708px;top:390px">×</div>
+
+  <div class="st q" style="left:416px;top:695px;width:384px"><b>AZ B を足すとき</b><span><code>associate-nat-gateway-address</code><br><code>--availability-zone</code> に AZ B を指定する<br>EIP B を関連付けると、AZ B も扱う</span></div>
+</div>
+<script>
+window.addEventListener('load', async () => { await document.fonts.ready;
+  wire('#aiA', '#aeA', {from: 't', to: 'b'});   // 自動モード: AZ A のインスタンス → EIP
+  wire('#aiB', '#aeB', {from: 't', to: 'b'});   // 自動モード: AZ B のインスタンス → EIP
+  wire('#miA', '#meA', {from: 't', to: 'b'});   // 手動モード: AZ A のインスタンス → EIP A
+  // 手動モードの AZ B: インスタンスの上辺から上へ、× の手前まで差し色の短い線（矢印なし）
+  const svg = document.getElementById('wires'), NS = 'http://www.w3.org/2000/svg';
+  const top = document.querySelector('#miB img').getBoundingClientRect().top - document.getElementById('fig').getBoundingClientRect().top;
+  const p = document.createElementNS(NS, 'polyline');
+  p.setAttribute('points', `708,${top - 4} 708,410`); p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#ff4d00'); p.setAttribute('stroke-width', '2.5');
+  svg.appendChild(p);
+  document.body.dataset.ready = '1';
+});
+</script>
+</body></html>
