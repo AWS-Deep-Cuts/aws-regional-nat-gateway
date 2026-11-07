@@ -330,12 +330,13 @@ curl -s -o /dev/null -w "%{http_code}\n" "${ECHO_URL}?az=no-token"
 403
 ```
 
-<!-- 画面写真: VPC コンソールの aws-deepcuts-rnat-vpc の「リソースマップ」タブ。サブネットが 0 個であることと、インターネットゲートウェイを枠で囲む -->
-<!-- 要確認: VPC コンソールの「リソースマップ」タブの名前 -->
+<!-- 画面写真: VPC コンソールの aws-deepcuts-rnat-vpc の「リソースマップ」タブ。「サブネット」が (0) であることを枠で囲む -->
+
+「リソースマップ」タブの右端の「ネットワーク接続」は (0) で、インターネットゲートウェイは表示されません。どのルートテーブルのルートも、まだインターネットゲートウェイを指していないためと考えられます。インターネットゲートウェイが取り付けられていることは、左のメニューの「インターネットゲートウェイ」で `aws-deepcuts-rnat-igw` を開き、「状態」が `Attached` であることで確かめます。
 
 > **この手順で確かめること**
-> - **やること**: VPC コンソールの左のメニューの「お使いの VPC」で `aws-deepcuts-rnat-vpc` を開き、リソースマップを確認します。左のメニューの「ルートテーブル」で `aws-deepcuts-rnat-private-rt` を開き、「ルート」タブも確認します。CloudShell で、上の 2 つの `curl` を実行します。
-> - **期待する結果**: VPC には、インターネットゲートウェイが取り付けられていて、サブネットは 1 つもありません。ルートテーブル `aws-deepcuts-rnat-private-rt` には、VPC の中の通信のルートである `10.0.0.0/16` だけがあります。1 つ目の `curl` は IPv4 アドレスを 1 行、2 つ目の `curl` は `403` を表示します。
+> - **やること**: VPC コンソールの左のメニューの「お使いの VPC」で `aws-deepcuts-rnat-vpc` を開き、「リソースマップ」タブを確認します。左のメニューの「インターネットゲートウェイ」で `aws-deepcuts-rnat-igw` を開き、「状態」を確認します。左のメニューの「ルートテーブル」で `aws-deepcuts-rnat-private-rt` を開き、「ルート」タブも確認します。CloudShell で、上の 2 つの `curl` を実行します。
+> - **期待する結果**: インターネットゲートウェイ `aws-deepcuts-rnat-igw` の「状態」が `Attached` で、VPC に取り付けられています。リソースマップの「サブネット」は (0) で、サブネットは 1 つもありません。ルートテーブル `aws-deepcuts-rnat-private-rt` には、VPC の中の通信のルートである `10.0.0.0/16` だけがあります。1 つ目の `curl` は IPv4 アドレスを 1 行、2 つ目の `curl` は `403` を表示します。
 > - **ここから分かること**: この VPC には、パブリックサブネットがありません。手順 2 では、この VPC に NAT ゲートウェイを作成します。1 つ目の `curl` が表示したのは、IP 確認用の関数から見た CloudShell の送信元 IP です。手順 4 以降では、同じ関数を確認用のインスタンスから呼び出し、NAT ゲートウェイを通った通信の送信元 IP を確かめます。トークンの無い呼び出しには、関数は送信元 IP を返しません。
 
 ## ２．regional NAT ゲートウェイを作成する
@@ -347,23 +348,22 @@ curl -s -o /dev/null -w "%{http_code}\n" "${ECHO_URL}?az=no-token"
 作成の前に、マネジメントコンソールの作成の画面で、availability mode の選択肢を確認します。この画面では作成しません。
 
 1. VPC コンソールの左のメニューから「NAT ゲートウェイ」を選び、「NAT ゲートウェイを作成」を押します。
-2. availability mode の選択肢として、ゾーンとリージョンに当たる 2 つの選択肢があるかを確認します。
-3. リージョンに当たる選択肢を選び、サブネットを選ぶ欄が、VPC を選ぶ欄に変わるかを確認します。
-4. EIP の割り当て方の欄があれば、自動と手動に当たる選択肢も確認します。
+2. 「アベイラビリティーモード」に、「リージョナル - 新規」と「ゾーナル」の 2 つの選択肢があることを確認します。
+3. 「ゾーナル」を選ぶと、「サブネット」と「Elastic IP 割り当て ID」の欄が表示されます。「リージョナル - 新規」に戻すと、サブネットの欄が「VPC」の欄に変わることを確認します。
+4. 「リージョナル - 新規」のときに表示される「Elastic IP (EIP) 割り当て方法」の、「自動」と「マニュアル」の 2 つの選択肢を確認します。「マニュアル」を選ぶと、AZ ごとに EIP を選ぶ「Elastic IP (EIP) の関連付け」の表が表示されます。
 5. 最後に「キャンセル」を押します。
 
 この画面の欄は、次の 2-1 で使う AWS CLI のパラメータに、次のように対応します。
 
 | 画面の欄 | AWS CLI のパラメータ |
 | --- | --- |
-| ゾーンかリージョンかを選ぶ欄 <!-- 要確認: 画面の項目名 --> | `--availability-mode` |
-| リージョンを選んだときに表示される、VPC を選ぶ欄 <!-- 要確認: 画面の項目名 --> | `--vpc-id` |
-| EIP を自動で割り当てるか、AZ ごとに指定するかを選ぶ欄 <!-- 要確認: 画面の項目名と、この欄があるか --> | `--availability-zone-addresses` を省くか、指定するか |
+| 「アベイラビリティーモード」 | `--availability-mode` |
+| 「VPC」。「リージョナル - 新規」を選んだときに表示される | `--vpc-id` |
+| 「Elastic IP (EIP) 割り当て方法」の「自動」と「マニュアル」 | `--availability-zone-addresses` を省くか、指定するか |
 
 作成は、次の 2-1 で AWS CLI から行います。CLI で作成すると、作成を依頼した時刻を記録しやすく、手順 4 以降で同じ NAT ゲートウェイの ID を変数で使えるためです。
 
-<!-- 画面写真: VPC コンソールの「NAT ゲートウェイを作成」の画面。availability mode の選択肢と、リージョンを選んだときの VPC の欄を枠で囲む -->
-<!-- 要確認: 画面の項目名と、regional を選んだときの欄の変化。画面に availability mode の選択肢が無い場合は、2-0 を削り、記事の対応の 1 文も削る -->
+<!-- 画面写真: VPC コンソールの「NAT ゲートウェイを作成」の画面。「アベイラビリティーモード」・「VPC」・「Elastic IP (EIP) 割り当て方法」の欄を枠で囲む -->
 
 ### 2-1. 作成を依頼する
 
@@ -410,7 +410,7 @@ aws ec2 describe-nat-gateways --nat-gateway-ids "${NAT_ID}" --region "${REGION}"
   --query 'NatGateways[0].{State:State,AvailabilityMode:AvailabilityMode,AutoProvisionZones:AutoProvisionZones,AutoScalingIps:AutoScalingIps,SubnetId:SubnetId,NatGatewayAddresses:NatGatewayAddresses}'
 ```
 
-出力の形の例は次のとおりです。`NatGatewayAddresses` が空になるかどうかは、この手順で観測します。
+出力の形の例は次のとおりです。ID・IP アドレス・AZ の名前は説明用の例です。`NatGatewayAddresses` に何が入るかは、この手順で観測します。
 
 ```json
 {
@@ -419,9 +419,20 @@ aws ec2 describe-nat-gateways --nat-gateway-ids "${NAT_ID}" --region "${REGION}"
     "AutoProvisionZones": "enabled",
     "AutoScalingIps": "enabled",
     "SubnetId": null,
-    "NatGatewayAddresses": []
+    "NatGatewayAddresses": [
+        {
+            "AllocationId": "eipalloc-0123456789abcdef0",
+            "PublicIp": "203.0.113.30",
+            "AssociationId": "eipassoc-0123456789abcdef0",
+            "Status": "succeeded",
+            "AvailabilityZone": "ap-northeast-1d",
+            "AvailabilityZoneId": "apne1-az2"
+        }
+    ]
 }
 ```
+
+筆者が 2026 年 11 月に東京リージョンで実行したときは、作成の依頼から約 2 分半で `available` になりました。その時点で、`NatGatewayAddresses` は空ではなく、1 つの AZ の EIP が `succeeded` で入っていました。この AZ は、`setup.sh` が AZ C に選んだ AZ でした。自動モードの NAT ゲートウェイは、サブネットが無くても、作成した時点で 1 つの AZ に EIP を関連付けたことになります。どの AZ が選ばれるのかは、この 1 回の観測からは分かりません。
 
 | 項目 | 意味 |
 | --- | --- |
@@ -429,16 +440,17 @@ aws ec2 describe-nat-gateways --nat-gateway-ids "${NAT_ID}" --region "${REGION}"
 | `AvailabilityMode` | `zonal` か `regional` か |
 | `AutoProvisionZones` | EC2 の API の説明によると、`enabled` のとき、NAT ゲートウェイは VPC にサブネットがある AZ に EIP を関連付け、新しい AZ にサブネットを作成するとその AZ に拡張する。作成時に指定する引数は無く、応答にだけある項目 |
 | `AutoScalingIps` | EC2 の API の説明によると、`enabled` のとき、ある AZ から 1 つの宛先への同時接続が増えて、NAT ゲートウェイが変換に使うポートが足りなくなると、AWS がその AZ に EIP を自動で追加する。応答にだけある項目 |
-| `SubnetId` | zonal NAT ゲートウェイを作成したサブネット。この手順では指定していないため、値が無く `null` と表示されると考えられる<!-- 要確認 --> |
+| `SubnetId` | zonal NAT ゲートウェイを作成したサブネット。この手順では指定していないため、値が無く `null` と表示される |
 | `NatGatewayAddresses` | AZ ごとの EIP の一覧。要素ごとに、AZ の名前 `AvailabilityZone`、パブリック IP アドレス `PublicIp`、AZ ごとの EIP の状態 `Status` などが入る。`Status` は `assigning`・`unassigning`・`associating`・`disassociating`・`succeeded`・`failed` のどれか |
 
-<!-- 画面写真: VPC コンソールの「NAT ゲートウェイ」の aws-deepcuts-rnat-auto の詳細。availability mode の表示と、EIP の一覧（まだ空の可能性がある）を枠で囲む -->
-<!-- 要確認: regional の NAT ゲートウェイの詳細画面の項目名 -->
+VPC コンソールの詳細の画面では、「アベイラビリティーモード」が `Regional`、「EIP 割り当ての方法」が `Automatic` と表示されます。「IP アドレス」タブの「関連付けられた IP アドレス」の表が、`NatGatewayAddresses` に当たります。AZ は、「アベイラビリティーゾーン」の列に `apne1-az2 (ap-northeast-1d)` のように、AZ ID と AZ の名前で表示されます。
+
+<!-- 画面写真: VPC コンソールの「NAT ゲートウェイ」の aws-deepcuts-rnat-auto の詳細。「アベイラビリティーモード」の表示と、「関連付けられた IP アドレス」の表を枠で囲む -->
 
 > **この手順で確かめること**
-> - **やること**: `describe-nat-gateways` の出力の 6 つの項目を確認します。VPC コンソールの左のメニューの「NAT ゲートウェイ」で `aws-deepcuts-rnat-auto` を開きます。観測記録表の表 1 に作成を依頼した時刻と `available` になった時刻を、表 2 の「2」の行に `NatGatewayAddresses` の内容を書きます。
-> - **期待する結果**: `State` は `available`、`AvailabilityMode` は `regional` です。Terraform のテストでは、自動モードで作成すると、`AutoProvisionZones` と `AutoScalingIps` はどちらも `enabled` になります。`NatGatewayAddresses` は、空であると予想できます。拡張のきっかけを ENI の検出とする説明でも、サブネットの作成とする説明でも、サブネットも ENI も無いこの VPC では、拡張される AZ が無いためです。<!-- 要確認: available の直後に NatGatewayAddresses が空か -->
-> - **ここから分かること**: NAT ゲートウェイの状態は `available` ですが、まだどの AZ にも EIP がありません。`available` は NAT ゲートウェイ全体の状態で、どの AZ を扱っているかは表しません。`aws ec2 wait nat-gateway-available` も、この全体の状態だけを待ちます。AZ ごとの状態は、`NatGatewayAddresses` で確かめます。
+> - **やること**: `describe-nat-gateways` の出力の 6 つの項目を確認します。VPC コンソールの左のメニューの「NAT ゲートウェイ」で `aws-deepcuts-rnat-auto` を開きます。観測記録表の表 1 に作成を依頼した時刻と `available` になった時刻を、表 2 の「2」の行に `NatGatewayAddresses` の内容を書きます。`NatGatewayAddresses` に AZ があれば、その AZ が `AZ_A`・`AZ_B`・`AZ_C` のどれに当たるかも書きます。
+> - **期待する結果**: `State` は `available`、`AvailabilityMode` は `regional` です。Terraform のテストでは、自動モードで作成すると、`AutoProvisionZones` と `AutoScalingIps` はどちらも `enabled` になります。拡張のきっかけを ENI の検出とする説明でも、サブネットの作成とする説明でも、サブネットも ENI も無いこの VPC には、拡張される AZ が無いはずです。ところが、筆者の観測では、`NatGatewayAddresses` は空ではなく、1 つの AZ の EIP が `succeeded` で入っていました。あなたの結果も、観測したとおりに書いてください。
+> - **ここから分かること**: NAT ゲートウェイの状態は `available` ですが、EIP があるのは、まだ一部の AZ だけです。`available` は NAT ゲートウェイ全体の状態で、どの AZ を扱っているかは表しません。`aws ec2 wait nat-gateway-available` も、この全体の状態だけを待ちます。AZ ごとの状態は、`NatGatewayAddresses` で確かめます。
 
 > ⚠️ **作成した時点で EIP が付いた AZ と、手順 4・5 の比較の関係**
 >
@@ -620,20 +632,38 @@ for i in $(seq 1 20); do
 done
 ```
 
-出力の形の例は次のとおりです。AZ の名前と IP アドレスは説明用の例です。
+筆者が 2026 年 11 月に実行したときの出力から、変化のあった回を抜き出した例は次のとおりです。IP アドレスは説明用の例に置き換え、変化の無い回は「…」で省いています。この例では、`ap-northeast-1a` が AZ A、`ap-northeast-1d` が AZ C で、AZ C には 2-2 の時点から EIP がありました。
 
 ```text
-── 05:41:40 UTC
-[egress-check] 05:41:33 az=ap-northeast-1a egress=FAIL
-── 05:42:10 UTC
+── 17:14:12 UTC
+ap-northeast-1d	203.0.113.30	succeeded
+── 17:14:44 UTC
+ap-northeast-1d	203.0.113.30	succeeded
+ip-10-0-1-139 login: [egress-check] 17:14:20 az=ap-northeast-1a egress=FAIL
+── 17:15:48 UTC
+ap-northeast-1d	203.0.113.30	succeeded
+[egress-check] 17:14:51 az=ap-northeast-1a egress=203.0.113.30
+…
+── 17:25:40 UTC
+ap-northeast-1d	203.0.113.30	succeeded
+ap-northeast-1a	None	associating
+[egress-check] 17:24:52 az=ap-northeast-1a egress=203.0.113.30
+…
+── 17:32:03 UTC
+ap-northeast-1d	203.0.113.30	succeeded
 ap-northeast-1a	203.0.113.10	succeeded
-[egress-check] 05:42:03 az=ap-northeast-1a egress=203.0.113.10
+[egress-check] 17:31:23 az=ap-northeast-1a egress=203.0.113.30
+── 17:32:36 UTC
+ap-northeast-1d	203.0.113.30	succeeded
+ap-northeast-1a	203.0.113.10	succeeded
+[egress-check] 17:31:53 az=ap-northeast-1a egress=203.0.113.10
 ```
 
-- インスタンスの起動から 1〜2 分は、確認の記録が表示されません。
-- 最初のうちは、`egress=FAIL` が続くと予想できます。AZ A に拡張されるまでは、NAT ゲートウェイがインスタンス A の通信を変換できないと考えられるためです。<!-- 要確認: 拡張の前の確認の記録が FAIL になるか -->
-- ループが終わったら、同じループをもう一度実行します。インスタンス A の確認の記録に IP アドレスが表示され、`nat_status` に AZ A の行が `succeeded` で表示されるまで続けます。30 分を過ぎても表示されない場合は、[トラブルシューティング](#トラブルシューティング)を確認してください。
-- AZ A の行が `succeeded` で初めて表示された回の `──` の行の時刻を、観測記録表の表 1 の「4-4」の AZ A の行に書きます。AZ C の行が表示された場合は、その回の時刻を「4-4」の AZ C の行に書きます。AZ A が `succeeded` になってから 10 分たっても AZ C の行が表示されなければ、「なし」と書いて次の手順へ進みます。AZ C の行は、手順 5 の観測の間に表示されることもあります。その場合は、時刻を書き足します。
+- インスタンスの起動から 1〜2 分は、確認の記録が表示されません。確認の記録は、コンソール出力に反映されるまで 1 分ほどかかるため、`──` の行の時刻より 1 分ほど前の記録が表示されます。行の先頭に `ip-10-0-1-139 login: ` のような OS のログインの案内が付くことがあります。
+- 筆者の観測では、`egress=FAIL` は最初の 1 回だけでした。その後は、AZ A に拡張されるまでの約 17 分間、インスタンス A の通信は、作成した時点から EIP のあった AZ C の EIP で外へ出ました。拡張が終わっていない AZ の通信は、拡張が済んだ別の AZ の EIP で変換されたことになります。このとき、通信は AZ をまたいで運ばれていると考えられます。公式の説明は見つかっていないため、あなたの結果も、観測したとおりに書いてください。
+- AZ A の行は、インスタンス A の起動から約 11 分半後に `associating` で現れ、`PublicIp` は `None` でした。約 18 分後に `succeeded` になり、インスタンス A の確認の記録が AZ A の EIP に変わりました。
+- ループが終わったら、同じループをもう一度実行します。`nat_status` に AZ A の行が `succeeded` で表示され、インスタンス A の確認の記録が AZ A の EIP になるまで続けます。30 分を過ぎても変わらない場合は、[トラブルシューティング](#トラブルシューティング)を確認してください。
+- AZ A の行が `succeeded` で初めて表示された回の `──` の行の時刻を、観測記録表の表 1 の「4-4」の AZ A の行に書きます。AZ C の行が 2-2 の時点から表示されていた場合は、「4-4」の AZ C の行に 2-2 の時刻を書きます。そうでない場合は、AZ C の行が表示された回の時刻を書きます。AZ A が `succeeded` になってから 10 分たっても AZ C の行が表示されなければ、「なし」と書いて次の手順へ進みます。AZ C の行は、手順 5 の観測の間に表示されることもあります。その場合は、時刻を書き足します。
 
 確認の記録は、インスタンスのコンソール出力に残ります。そのため、CloudShell のセッションが終了しても、次のコマンドで、確認の記録を最大 120 行さかのぼって読めます。
 
@@ -641,13 +671,12 @@ ap-northeast-1a	203.0.113.10	succeeded
 check_log "${INSTANCE_A}" 120
 ```
 
-<!-- 画面写真: EC2 コンソールのインスタンス aws-deepcuts-rnat-check-a の「システムログを取得」の画面。egress=FAIL から egress=<IP> に変わる行を枠で囲む -->
-<!-- 要確認: EC2 コンソールの「アクション」→「モニタリングとトラブルシューティング」→「システムログを取得」の表示名 -->
+<!-- 画面写真: EC2 コンソールのインスタンス aws-deepcuts-rnat-check-a の「システムログを取得」の画面。egress=FAIL の次の記録から送信元 IP が表示される行を枠で囲む -->
 
 > **この手順で確かめること**
-> - **やること**: `check_log "${INSTANCE_A}" 120` で、インスタンス A の確認の記録をさかのぼり、`egress=FAIL` から IP アドレスに変わった時刻を探します。その IP アドレスを、`nat_status "${NAT_ID}"` の AZ A の行の EIP と比べます。`nat_status` に AZ C の行があるかも確認します。結果を、観測記録表の表 2 の「4」の 2 つの行に書きます。EC2 コンソールでは、インスタンス `aws-deepcuts-rnat-check-a` を選び、「アクション」から「システムログを取得」を開くと、同じコンソール出力を確認できます。
-> - **期待する結果**: インスタンス A の確認の記録の IP アドレスは、`nat_status` の AZ A の行の EIP と一致します。EC2 の API の説明によると、regional NAT ゲートウェイは、AZ ごとに別の EIP で、その AZ の外向きの通信を変換するためです。AZ C の行については、EC2 の API の説明が 2 通りに書いているため、どちらの結果もありえます。`CreateNatGateway` の説明どおりなら、ENI の無い AZ C の行は表示されません。`AutoProvisionZones` の説明どおりなら、サブネットのある AZ C の行も表示されます。
-> - **ここから分かること**: 自動モードの NAT ゲートウェイは、作成した直後からすべての AZ を扱うのではありません。AZ に EIP が関連付けられ、`succeeded` になってから、その AZ のインスタンスは NAT ゲートウェイの EIP で外へ出ます。拡張にかかった時間は、インスタンスを起動した時刻と、確認の記録に初めて IP アドレスが表示された時刻の差で分かります。AZ C の結果から、サブネットを作成するだけで拡張されるかどうかも分かります。
+> - **やること**: `check_log "${INSTANCE_A}" 120` で、インスタンス A の確認の記録をさかのぼり、最初の確認の記録と、送信元 IP が AZ A の EIP に変わった時刻を探します。その IP アドレスを、`nat_status "${NAT_ID}"` の AZ A の行の EIP と比べます。AZ A に拡張されるまでの間の送信元 IP が、`FAIL` か、別の AZ の EIP かも確かめます。`nat_status` に AZ C の行があるかも確認します。結果を、観測記録表の表 2 の「4」の 2 つの行に書きます。EC2 コンソールでは、インスタンス `aws-deepcuts-rnat-check-a` を選び、「アクション」から「システムログを取得」を開くと、同じコンソール出力を確認できます。
+> - **期待する結果**: 最終的に、インスタンス A の確認の記録の IP アドレスは、`nat_status` の AZ A の行の EIP と一致します。EC2 の API の説明によると、regional NAT ゲートウェイは、AZ ごとに別の EIP で、その AZ の外向きの通信を変換するためです。AZ C の行については、EC2 の API の説明が 2 通りに書いているため、どちらの結果もありえます。`CreateNatGateway` の説明どおりなら、ENI の無い AZ C の行は表示されません。`AutoProvisionZones` の説明どおりなら、サブネットのある AZ C の行も表示されます。ただし、筆者の観測のように、AZ C の行が 2-2 の時点から表示されていた場合は、この比較では拡張のきっかけを判定できません。また、サブネット A の作成とインスタンス A の起動の間は短いため、AZ A についても、どちらがきっかけかは区別できません。
+> - **ここから分かること**: 自動モードの NAT ゲートウェイは、作成した直後からすべての AZ を扱うのではありません。AZ に EIP が関連付けられ、`succeeded` になってから、その AZ のインスタンスは、その AZ の EIP で外へ出ます。拡張にかかった時間は、インスタンスを起動した時刻と、確認の記録が AZ A の EIP に変わった時刻の差で分かります。筆者のときは約 18 分で、AWS の CDK のテストのコメントにある平均 15〜20 分の範囲に入っていました。拡張が終わるまでの間も、通信は外へ出られなくなるとは限らず、筆者のときは別の AZ の EIP で外へ出ました。
 
 ## ５．AZ B で拡張されるまでの間の通信を観測する
 
@@ -706,7 +735,9 @@ AZ B の行が `succeeded` で表示されるまで、ループを繰り返し�
 check_log "${INSTANCE_B}" 120
 ```
 
-AZ B の行が表示されてもインスタンス B の確認の記録が IP アドレスにならない場合は、1〜2 分待ってから、もう一度さかのぼります。
+AZ B の行が `succeeded` になってもインスタンス B の確認の記録が AZ B の EIP にならない場合は、1〜2 分待ってから、もう一度さかのぼります。確認の記録は、コンソール出力に反映されるまで 1 分ほどかかるためです。
+
+筆者のときは、インスタンス B の起動から約 7 分後に AZ B の行が `associating` で現れ、約 13 分後にインスタンス B の確認の記録が AZ B の EIP に変わりました。それまでの約 13 分間の記録は、最初の 1 回から、すべて 2-2 の時点から EIP のあった AZ C の EIP で、`FAIL` は 1 回もありませんでした。同じく拡張の済んでいた AZ A の EIP でもありませんでした。どの AZ の EIP が使われるのかを決める規則は、この 1 回の観測からは分かりません。
 
 AZ A のインスタンスの通信が NAT ゲートウェイを通る流れと、AZ ごとの送信元 IP を、次の図に示します。図の 1〜5 は通信の流れの順序で、ハンズオンの手順の番号ではありません。
 
@@ -784,16 +815,28 @@ aws ec2 describe-addresses --region "${REGION}" \
   --query 'Addresses[].[PublicIp,AllocationId,ServiceManaged,NetworkInterfaceId]' --output table
 ```
 
-`nat_status` に表示された EIP の IP アドレスが、この一覧にあるかを確かめます。ある場合は、その行の `ServiceManaged` の値を、観測記録表の表 2 の「5-5」の行に書きます。`ServiceManaged` は、その EIP を管理している AWS のサービスを表す項目です。EC2 の API では、値の 1 つに `rnat` があります。値が `rnat` なら、その EIP は regional NAT ゲートウェイが管理していると考えられます。`describe-addresses` には `ServiceManaged` で絞り込むフィルターが無いため、一覧から目で探します。
+`nat_status` に表示された EIP の IP アドレスが、この一覧にあるかを確かめます。ある場合は、その行の `ServiceManaged` の値を、観測記録表の表 2 の「5-5」の行に書きます。`ServiceManaged` は、その EIP を管理している AWS のサービスを表す項目です。EC2 の API では、値の 1 つに `rnat` があります。値が `rnat` なら、その EIP は regional NAT ゲートウェイが管理しています。`describe-addresses` には `ServiceManaged` で絞り込むフィルターが無いため、一覧から目で探します。
 
-この結果は、6-1 で NAT ゲートウェイを削除した後の結果と比べます。自動モードの EIP が自分のアカウントの EIP として見える場合は、EIP の数のクォータや、パブリック IPv4 アドレスの料金に関わる可能性があります。<!-- 要確認: 自動モードの EIP が EIP のクォータに数えられるか、パブリック IPv4 アドレスの料金がかかるか -->
+筆者のときの出力は次のとおりです。IP アドレスと割り当て ID は説明用の例です。`nat_status` に表示された 3 つの EIP が、すべて自分のアカウントの EIP の一覧に表示され、`ServiceManaged` は 3 つとも `rnat`、`NetworkInterfaceId` は 3 つとも `None` でした。
+
+```text
+-----------------------------------------------------------------
+|                       DescribeAddresses                       |
++----------------+------------------------------+-------+-------+
+|  198.51.100.20 |  eipalloc-0123456789abcdef2  |  rnat |  None |
+|  203.0.113.10  |  eipalloc-0123456789abcdef1  |  rnat |  None |
+|  203.0.113.30  |  eipalloc-0123456789abcdef0  |  rnat |  None |
++----------------+------------------------------+-------+-------+
+```
+
+この結果は、6-1 で NAT ゲートウェイを削除した後の結果と比べます。自動モードの EIP が自分のアカウントの EIP として見えるため、EIP の数のクォータや、パブリック IPv4 アドレスの料金に関わる可能性があります。<!-- 要確認: 自動モードの EIP が EIP のクォータに数えられるか、パブリック IPv4 アドレスの料金がかかるか -->
 
 <!-- 画面写真: VPC コンソールの aws-deepcuts-rnat-auto の詳細。AZ ごとの EIP の行を枠で囲む -->
 <!-- 画面写真: CloudWatch Logs のロググループ /aws/lambda/aws-deepcuts-rnat-echo のログイベント。az の値が違う 2 つの source_ip を枠で囲む -->
 
 > **この手順で確かめること**
 > - **やること**: インスタンス B の確認の記録をさかのぼり、起動してから IP アドレスが表示されるまでの記録を読みます。`nat_status` の AZ A と AZ B の行の EIP と、2 台の確認の記録の IP アドレスを比べます。`aws logs tail` の出力の `source_ip` と `az` も比べます。CloudWatch Logs のコンソールで、ロググループ `/aws/lambda/aws-deepcuts-rnat-echo` を開き、同じログを確認します。結果を、観測記録表の表 2 の「5」と「5-5」の行に書きます。
-> - **期待する結果**: 最終的に、`nat_status` には AZ A と AZ B の行が `succeeded` で表示され、2 つの EIP は互いに異なります。手順 4 で AZ C に拡張されていれば、AZ C の行も表示されます。インスタンス A の送信元 IP は AZ A の EIP、インスタンス B の送信元 IP は AZ B の EIP です。拡張が終わるまでの間のインスタンス B の記録は、公式の説明が見つかっていないため、観測した結果をそのまま観測記録表に書きます。
+> - **期待する結果**: 最終的に、`nat_status` には AZ A と AZ B の行が `succeeded` で表示され、2 つの EIP は互いに異なります。手順 4 で AZ C に拡張されていれば、AZ C の行も表示されます。インスタンス A の送信元 IP は AZ A の EIP、インスタンス B の送信元 IP は AZ B の EIP です。拡張が終わるまでの間のインスタンス B の記録は、筆者の観測では、`FAIL` でも EIP A でもなく、AZ C の EIP でした。公式の説明が見つかっていないため、あなたの結果も、予想と違っても、観測した結果をそのまま観測記録表に書きます。`describe-addresses` には、`nat_status` の EIP が `ServiceManaged` の値 `rnat` で表示されます。
 > - **ここから分かること**: regional NAT ゲートウェイは 1 つですが、外へ出るときの送信元 IP は AZ ごとに違います。外部のサービスの許可リストに送信元 IP を登録する場合は、すべての AZ の EIP を登録する必要があります。このハンズオンの自動モードでは EIP を指定しなかったため、送信元 IP は NAT ゲートウェイが割り当てたアドレスになりました。AWS の CDK のテストのコメントも、自動モードでは、NAT ゲートウェイが使うアドレスを NAT ゲートウェイ自身が割り当てると書いています。次の手順では、手動モードで、送信元 IP を自分の EIP にします。
 
 ## ６．手動モードで作り直して送信元 IP を自分の EIP にする
@@ -829,9 +872,15 @@ aws ec2 describe-addresses --region "${REGION}" \
   --query 'Addresses[].[PublicIp,AllocationId,ServiceManaged,NetworkInterfaceId]' --output table
 ```
 
-- EC2 の API の説明によると、NAT ゲートウェイを削除しても、ルートテーブルの NAT ゲートウェイへのルートは消えません。送り先の無くなったルートの状態は、`blackhole` になると考えられます。<!-- 要確認: 削除した NAT ゲートウェイへのルートの状態が blackhole になるか -->
-- この間の 2 台の確認の記録は、`check_log "${INSTANCE_A}" 10` と `check_log "${INSTANCE_B}" 10` で確かめられます。削除を依頼した後の記録は `FAIL` になると予想できます。
-- `describe-addresses` は、5-5 と同じ列で表示しています。5-5 で見えた EIP が、削除の後も表示されるかを比べ、観測記録表の表 2 の「6-1」の行に書きます。数分おいて、もう一度実行してもかまいません。表示され続ける EIP を自分で解放する必要があるかは、確かめられていません。そのため、`cleanup.sh` が最後に確認して表示します。
+1 つ目のコマンドの出力の形の例は次のとおりです。
+
+```text
+nat-0123456789abcdef0	blackhole
+```
+
+- デフォルトルートは、削除した自動モードの NAT ゲートウェイの ID を指したまま残ります。EC2 の API の説明どおり、NAT ゲートウェイを削除しても、ルートテーブルの NAT ゲートウェイへのルートは消えません。送り先の無くなったルートの状態は、`blackhole` になります。
+- この間の 2 台の確認の記録は、`check_log "${INSTANCE_A}" 10` と `check_log "${INSTANCE_B}" 10` で確かめられます。筆者のときは、削除を依頼した後の記録が `FAIL` になりました。
+- `describe-addresses` は、5-5 と同じ列で表示しています。5-5 で見えた EIP が、削除の後も表示されるかを比べ、観測記録表の表 2 の「6-1」の行に書きます。筆者のときは、`deleted` になった直後の `describe-addresses` に何も表示されず、5-5 で見えた `rnat` の 3 つの EIP は、NAT ゲートウェイの削除とともにアカウントの EIP の一覧から消えました。`rnat` の EIP が残った場合に備えて、`cleanup.sh` が最後に確認して表示します。
 
 ### 6-2. EIP A を確保して手動モードで作成する
 
@@ -925,7 +974,9 @@ for i in $(seq 1 10); do
 done
 ```
 
-インスタンス A の確認の記録が EIP A の IP アドレスになったら、インスタンス B の確認の記録を確認します。結果を、観測記録表の表 2 の「6-4」の行に書きます。
+インスタンス A の確認の記録が EIP A の IP アドレスになったら、インスタンス B の確認の記録を確認します。結果を、観測記録表の表 2 の「6-4」の行に書きます。ルートを付け替える前の記録は、デフォルトルートが `blackhole` のため、2 台とも `FAIL` になります。
+
+筆者のときは、`replace-route` の約 1 分後に、インスタンス A の確認の記録が EIP A になりました。指定していない AZ B のインスタンス B も、`FAIL` ではなく、AZ A の EIP A で外へ出ました。ループの終わりまで、EIP A のままでした。
 
 ### 6-5. AZ B に EIP B を追加する
 
@@ -954,15 +1005,17 @@ date -u +%H:%M:%S
 
 続けて、6-4 のループをもう一度実行します。AZ B の行が `succeeded` で表示された回の時刻を、観測記録表の表 1 の「6-5」の 2 つ目の欄に書きます。インスタンス B の確認の記録が EIP B の IP アドレスになるまで待ち、その時刻を表 2 の「6-5」の行に書きます。
 
-<!-- 要確認: 手動モードの NAT ゲートウェイに、AssociateNatGatewayAddress で新しい AZ を足せること（CloudFormation の更新のハンドラーと Terraform のテストからの推定）。失敗する場合は、6-5 を「AZ B も指定して手動モードで作り直す」手順に置き換える -->
+6-4 のループは約 5 分で終わります。筆者のときは、関連付けから AZ B の行が `succeeded` になるまで約 6 分半、インスタンス B の確認の記録が EIP B になるまで約 7 分かかり、1 回のループでは終わりませんでした。ループが終わっても AZ B の行が `succeeded` にならないか、インスタンス B の確認の記録が EIP B にならない場合は、ループをもう一度実行してください。関連付けの直後は、AZ B の行が `associating` で、`PublicIp` は `None` です。この間も、筆者のときは、インスタンス B は EIP A で外へ出ていました。
+
+手動モードの NAT ゲートウェイにも、`associate-nat-gateway-address` で新しい AZ を足せます。筆者のときは、`associate-nat-gateway-address` は AZ B の EIP の `Status` が `associating` の応答を返し、エラーにはなりませんでした。
 
 <!-- 画面写真: EC2 コンソールの「Elastic IP」の一覧。aws-deepcuts-rnat-eip-a と eip-b と、関連付けられた NAT ゲートウェイを枠で囲む -->
 <!-- 画面写真: VPC コンソールの aws-deepcuts-rnat-manual の詳細。AZ A と AZ B の EIP を枠で囲む -->
 
 > **この手順で確かめること**
 > - **やること**: 6-4 と 6-5 の後の、2 台の確認の記録を比べます。インスタンス A の記録の IP アドレスを、6-2 で表示した EIP A の IP アドレスと比べます。EC2 コンソールの左のメニューの「Elastic IP」で、`aws-deepcuts-rnat-eip-a` と `aws-deepcuts-rnat-eip-b` の関連付け先を確認します。
-> - **期待する結果**: 6-4 では、インスタンス A の送信元 IP は EIP A です。AWS の CDK のテストも、手動モードで送信元 IP が指定した EIP と一致することを確かめる作りになっています。AWS の CDK の文書によると、指定していない AZ B のインスタンス B は外へ出られないため、記録は `FAIL` になると予想できます。6-5 の後は、インスタンス B の送信元 IP が EIP B になります。
-> - **ここから分かること**: 手動モードでは、送信元 IP を、自分で確保した EIP にできます。外部のサービスの許可リストに登録する IP アドレスを、あなたが決められます。その代わり、NAT ゲートウェイは指定した AZ だけを扱います。AZ を増やすときは、その AZ に EIP を関連付ける必要があります。
+> - **期待する結果**: 6-4 では、インスタンス A の送信元 IP は EIP A です。AWS の CDK のテストも、手動モードで送信元 IP が指定した EIP と一致することを確かめる作りになっています。AWS の CDK の文書によると、指定していない AZ のサブネットのデフォルトルートは、実行時に通信を運びません。この説明からは、指定していない AZ B のインスタンス B の記録は `FAIL` になると予想できます。ところが、筆者の観測では、インスタンス B は、指定した AZ A の EIP A で外へ出ました。手順 4・5 の自動モードで、拡張が終わる前の通信が別の AZ の EIP で外へ出たのと、同じ動きです。6-5 の後は、インスタンス B の送信元 IP が EIP B になります。
+> - **ここから分かること**: 手動モードでは、送信元 IP を、自分で確保した EIP にできます。外部のサービスの許可リストに登録する IP アドレスを、あなたが決められます。その代わり、NAT ゲートウェイが EIP を持つのは、指定した AZ だけです。AZ を増やすときは、その AZ に EIP を関連付ける必要があります。指定していない AZ の通信が、指定した AZ の EIP で外へ出る動きは、公式の説明と異なり、通信が AZ をまたぎます。この動きには頼らず、実際の構成では、ルートを向けるすべての AZ を指定してください。
 
 ## ７．後片付け
 
@@ -1005,7 +1058,7 @@ bash ./cleanup.sh
 > **この手順で確かめること**
 > - **やること**: VPC コンソールの左のメニューの「お使いの VPC」で、`aws-deepcuts-rnat-vpc` が無いことを確かめます。EC2 コンソールの左のメニューの「Elastic IP」で、`aws-deepcuts-rnat-eip-a` と `aws-deepcuts-rnat-eip-b` の EIP と、手順 5-5・6-1 で見た IP アドレスの EIP が無いことを確かめます。
 > - **期待する結果**: どちらの一覧にも、このハンズオンのリソースは表示されません。
-> - **ここから分かること**: NAT ゲートウェイを削除しても、EIP とルートは残ります。手順 6-1 で自動モードの NAT ゲートウェイを削除した後も、ルートは残っていました。NAT ゲートウェイを使い終えたら、EIP の解放とルートの削除まで、明示的に片付ける必要があります。
+> - **ここから分かること**: NAT ゲートウェイを削除しても、自分で確保した EIP とルートは残ります。手順 6-1 で自動モードの NAT ゲートウェイを削除した後も、ルートは `blackhole` で残っていました。自動モードで割り当てられた EIP は、筆者のときは NAT ゲートウェイとともに消えました。NAT ゲートウェイを使い終えたら、自分で確保した EIP の解放とルートの削除まで、明示的に片付ける必要があります。
 
 この「確かめること」を済ませ、`✅ すべてのリソースの削除が完了しました！` と表示されたことを確かめてから、次のコマンドでリポジトリを削除します。`cleanup.sh` は `resource-ids.env` も読み込むため、先にリポジトリを削除すると、後片付けをやり直しにくくなります。
 
@@ -1043,7 +1096,7 @@ Cost Explorer では、NAT ゲートウェイの料金は、サービス `EC2 - 
 
 説明用の例を 1 つ示します。値は例です。自動モードの NAT ゲートウェイが 1 時間 40 分存在し、AZ A を 1 時間 20 分、AZ B を 50 分扱いました。手動モードの NAT ゲートウェイは 40 分存在し、AZ A を 40 分、AZ B を 25 分扱いました。この場合、NAT ゲートウェイごとの予測値は 2 ＋ 1 ＝ 3 時間、AZ ごとの予測値は 2 ＋ 1 ＋ 1 ＋ 1 ＝ 5 時間です。
 
-自動モードの NAT ゲートウェイは、作成した直後は扱う AZ が 0 で、AZ A、AZ B と増えていきます。手動モードの NAT ゲートウェイも、6-5 までは AZ A だけを扱います。そのため、AZ ごとに数える場合の使用量は、NAT ゲートウェイごとの使用量に AZ の数を掛けた値にはならず、それより小さくなります。
+自動モードの NAT ゲートウェイは、筆者の観測では、作成した直後は 1 つの AZ だけを扱い、AZ A、AZ B と増えていきました。作成した時点から扱っていた AZ の時間は、2-2 の時刻から数えます。手動モードの NAT ゲートウェイも、6-5 までは AZ A だけを扱います。そのため、AZ ごとに数える場合の使用量は、NAT ゲートウェイの存在した時間に AZ の数を掛けた値にはならず、それより小さくなります。ただし、どの時間も 1 時間未満の場合は、切り上げのために、AZ の数を掛けた値と同じになります。
 
 時間の端数をどう数えるか、たとえば 1 時間未満をどう扱うかや、時計の 1 時間の区切りで数えるかは、確かめていません。そのため、切り上げで計算した予測値と、Cost Explorer の使用量が、1〜2 時間ずれることがあります。<!-- 要確認: 料金ページで、時間料金の端数の扱いを確かめる。確かめられたら、計算のしかたを合わせる -->
 
@@ -1163,7 +1216,7 @@ aws ce get-cost-and-usage --region us-east-1 \
 | `run-instances` が `InsufficientInstanceCapacity` や `Unsupported` で失敗する | その AZ で t4g.nano を起動できない | 時間をおいて再実行する。続く場合は、`resource-ids.env` の `INSTANCE_TYPE` を `t4g.micro` に書き換えて、`source ./resource-ids.env` を実行し直す |
 | `associate-nat-gateway-address` がエラーになる | 手動モードの NAT ゲートウェイに、新しい AZ を追加できない可能性がある | この表の下の「AZ B も指定して手動モードで作り直す手順」を行う |
 | `cleanup.sh` が `DependencyViolation` を含む `⚠️` を表示し、`❌` で終わる | ENI が残っている。インスタンスの終了や NAT ゲートウェイの削除が終わっていない | 数分待ってから `bash ./cleanup.sh` をもう一度実行する |
-| `cleanup.sh` が `⚠️ regional NAT ゲートウェイが管理する EIP` を表示する。rnat の EIP が残る | 自動モードで割り当てられた EIP が、NAT ゲートウェイの削除の後もしばらく残っている可能性がある。このハンズオン以外の regional NAT ゲートウェイを使っている場合は、その EIP も表示される | 1. 数分待って `bash ./cleanup.sh` を再実行する。2. 残る場合は、表示された割り当て ID で `aws ec2 release-address --allocation-id <割り当て ID> --region "${REGION}"` を試す。3. 拒否された場合は、AWS が管理する EIP のため、自分では解放できないと考えられる。翌日以降に、Cost Explorer で使用タイプ `APN1-PublicIPv4:InUseAddress` と `APN1-PublicIPv4:IdleAddress` の料金が増えていないかを確かめる<!-- 要確認: 自動モードの EIP が NAT ゲートウェイの削除後に残るか、自分で解放できるか --> |
+| `cleanup.sh` が `⚠️ regional NAT ゲートウェイが管理する EIP` を表示する。rnat の EIP が残る | 自動モードで割り当てられた EIP が、NAT ゲートウェイの削除の後もしばらく残っている可能性がある。筆者のときは、`deleted` になった直後に一覧から消え、この表示は出なかった。このハンズオン以外の regional NAT ゲートウェイを使っている場合は、その EIP も表示される | 1. 数分待って `bash ./cleanup.sh` を再実行する。2. 残る場合は、表示された割り当て ID で `aws ec2 release-address --allocation-id <割り当て ID> --region "${REGION}"` を試す。3. 拒否された場合は、AWS が管理する EIP のため、自分では解放できないと考えられる。翌日以降に、Cost Explorer で使用タイプ `APN1-PublicIPv4:InUseAddress` と `APN1-PublicIPv4:IdleAddress` の料金が増えていないかを確かめる<!-- 要確認: 自動モードの EIP が NAT ゲートウェイの削除後に残るか、自分で解放できるか --> |
 
 手順 6-5 で `associate-nat-gateway-address` が失敗した場合は、次の手順で、AZ A と AZ B の両方を指定した手動モードの NAT ゲートウェイを作り直します。
 
