@@ -17,9 +17,8 @@ set -euo pipefail
 #      関数が IPv4 アドレスを返したときは、その IP アドレスを書く。
 #      タイムアウト・HTTP のエラー・invalid token のときは FAIL と書く。トークンはコンソール出力に書かない。
 #
-# 要確認: Amazon Linux 2023 の arm64 のインスタンスで、/dev/console に書いた行が
-#         aws ec2 get-console-output --latest に表示されること。表示されない場合は、
-#         egress-check-loop.sh の書き先を /dev/ttyS0 に変更する。
+# Amazon Linux 2023 の arm64 のインスタンスで、/dev/console に書いた行が
+# aws ec2 get-console-output --latest に表示されることを、実機で確かめている（2026 年 11 月）。
 
 ECHO_URL="__ECHO_URL__"
 ECHO_TOKEN="__ECHO_TOKEN__"
