@@ -303,7 +303,8 @@ echo ""
 # ─── [7/7] 確認用のインスタンスのユーザーデータ ─────────────────────
 echo "[7/7] 確認用のインスタンスのユーザーデータ egress-check.sh を作成..."
 # egress-check.sh にはトークンが入るため、Git の管理から外している（hands-on/.gitignore）
-sed -e "s|__ECHO_URL__|${ECHO_URL}|" -e "s|__ECHO_TOKEN__|${ECHO_TOKEN}|" \
+# 置き換えるのは、コメント以外の行だけにする（ひな形の説明のコメントの中の名前は、そのまま残す）
+sed -e "/^[[:space:]]*#/!s|__ECHO_URL__|${ECHO_URL}|" -e "/^[[:space:]]*#/!s|__ECHO_TOKEN__|${ECHO_TOKEN}|" \
   "${SCRIPT_DIR}/egress-check.template.sh" > "${SCRIPT_DIR}/egress-check.sh"
 chmod 600 "${SCRIPT_DIR}/egress-check.sh"
 echo "  作成: ${SCRIPT_DIR}/egress-check.sh"
