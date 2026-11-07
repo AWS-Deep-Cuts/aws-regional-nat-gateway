@@ -90,6 +90,9 @@ OFFERED=$(aws ec2 describe-instance-type-offerings --region "${REGION}" \
   --filters "Name=instance-type,Values=${INSTANCE_TYPE}" \
   --query 'InstanceTypeOfferings[].Location' --output text | tr '\t' '\n' | grep -v '^$' | sort || true)
 # AZ C: サブネットだけを置くため、インスタンスタイプは問わない。オプトインの不要な、使える AZ から選ぶ
+# 注意: 自動モードの NAT ゲートウェイは、サブネットが無くても、作成した時点で 1 つの AZ に EIP を関連付けた
+#       （2026 年 11 月の観測）。AZ はこのスクリプトが NAT ゲートウェイの作成より前に選ぶため、その AZ を除けない。
+#       その AZ が AZ C なら、手順 4 の比較では拡張のきっかけを判定できない（README の手順 2-2 の注意）。
 ALL_AZ=$(aws ec2 describe-availability-zones --region "${REGION}" \
   --filters Name=zone-type,Values=availability-zone Name=state,Values=available Name=opt-in-status,Values=opt-in-not-required \
   --query 'AvailabilityZones[].ZoneName' --output text | tr '\t' '\n' | grep -v '^$' | sort || true)
