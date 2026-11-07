@@ -236,8 +236,9 @@ else
     report "解放: ${ALLOC}"
   done
 fi
-# 自動モードの regional NAT ゲートウェイが割り当てた EIP は、ServiceManaged が rnat で表示される可能性がある。
-# 自分で解放してよいかを確かめられていないため、ここでは解放せず、表示だけする。
+# 自動モードの regional NAT ゲートウェイが割り当てた EIP は、ServiceManaged が rnat で表示される。
+# 2026 年 11 月の観測では、NAT ゲートウェイが deleted になった直後に一覧から消えた。
+# 残った場合に自分で解放してよいかは確かめられていないため、ここでは解放せず、表示だけする。
 RNAT=$(aws ec2 describe-addresses --region "${REGION}" \
   --query "Addresses[?ServiceManaged=='rnat'].[PublicIp,AllocationId]" --output text 2>/dev/null || true)
 if [[ -n "${RNAT}" && "${RNAT}" != "None" ]]; then
