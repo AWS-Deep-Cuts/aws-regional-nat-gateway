@@ -1,0 +1,7 @@
+resource-ids.env
+__pycache__/
+*.pyc
+.DS_Store
+
+# 図の書き出し用の依存（img/src で npm install したもの）
+node_modules

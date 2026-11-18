@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- nat-basics: NAT ゲートウェイが通信の送信元を EIP に書き換える（記事「そもそもNATゲートウェイとは？」の図）。
+     本文との対応（article/aws-regional-nat-gateway.md の 26〜30 行目）:
+       左のプライベートサブネットのインスタンスが、送信元 10.0.1.23 で通信を送る。
+       プライベートサブネットのルートテーブルの「0.0.0.0/0 は NAT ゲートウェイへ送る」ルートで、右のパブリックサブネットの NAT ゲートウェイに届く。
+       NAT ゲートウェイが送信元を EIP の 203.0.113.10 に書き換えて、インターネットゲートウェイへ送る。宛先から見た送信元は 203.0.113.10。
+       パブリックサブネットのルートテーブルは「0.0.0.0/0 はインターネットゲートウェイへ送る」（パブリックサブネットの定義）。
+     根拠: 一般的な NAT ゲートウェイの仕組み（DESIGN 2.1）。zonal NAT ゲートウェイが EIP を使うことは CreateNatGateway の AllocationId
+       （botocore ec2 2016-11-15、factsheet rng-004 の Agent Skill の手順も --allocation-id で EIP を渡す）。
+     説明用の値（DESIGN 2.0）: プライベート IP 10.0.1.23、EIP 203.0.113.10。図の下に「IP アドレスは説明用の例」と書く。
+     アイコン（npm パッケージ aws-icons）: Internet、AmazonVPCInternetGateway、VirtualprivatecloudVPC、Privatesubnet、Publicsubnet、
+       AmazonEC2Instance、AmazonVPCNATGateway、AmazonEC2ElasticIPAddress。
+     座標（DESIGN 6.1 から調整）:
+       - 流れは下から上。インスタンス → NAT ゲートウェイ（水平。アイコンの中心 y=288）→ インターネットゲートウェイ → 宛先（垂直。x=640）。
+       - パブリックサブネットの枠の札（x=344〜544）に、NAT ゲートウェイからインターネットゲートウェイへの縦の線が重ならないよう、
+         DESIGN の割り付け（2 つの枠を 336px ずつ、中心 x=560）から、プライベート 280px・パブリック 432px に変え、縦の線を x=640 に移した。
+       - インターネットゲートウェイのアイコン 48px の中心を VPC の上辺（y=148）に置く。ラベルは枠の外、アイコンの左（右端 x=608、アイコンから 8px）。
+       - 2 つの送信元の札を同じ高さ（y=362）に置き、見比べられるようにする。線の上にはラベルを置かない。
+       - 枠と中身の間は 24px 以上（枠の札の下端からも 24px）。 -->
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="deepcuts.css">
+<link rel="stylesheet" href="rnat.css">
+<script src="wires.js"></script>
+<style>
+  #fig { width: 800px; height: 654px; }
+  .card { width: auto; }
+</style>
+</head><body>
+<div id="fig">
+  <svg id="wires"></svg>
+
+  <!-- 宛先 -->
+  <div class="node wide cx" id="dest" style="left:640px;top:0"><img src="../icons/Internet.svg"><div class="t">インターネット上の宛先</div></div>
+
+  <!-- VPC とインターネットゲートウェイ -->
+  <div class="fr vpc" style="left:0;top:148px;width:800px;height:465px">
+    <div class="gl"><img src="../icons/VirtualprivatecloudVPC.svg"><span class="ja">VPC</span></div>
+  </div>
+  <img id="igw" data-cross="1" src="../icons/AmazonVPCInternetGateway.svg" style="position:absolute;left:616px;top:124px;width:48px;height:48px;background:var(--bone)">
+  <div class="tx" style="right:192px;top:111px;font-weight:900">インターネットゲートウェイ</div>
+
+  <!-- プライベートサブネット -->
+  <div class="fr priv" style="left:24px;top:204px;width:280px;height:385px">
+    <div class="gl"><img src="../icons/Privatesubnet.svg"><span class="ja">プライベートサブネット</span></div>
+  </div>
+  <div class="node cx" id="inst" style="left:164px;top:260px"><img src="../icons/AmazonEC2Instance.svg"><div class="t">インスタンス</div></div>
+  <div class="eip cx" style="left:164px;top:362px;padding-left:10px">送信元 <code>10.0.1.23</code></div>
+  <div class="card" style="left:48px;top:452px;width:232px">
+    <div class="h">ルートテーブル</div>
+    <div class="body"><code>0.0.0.0/0</code> <span class="op">→</span><br>NAT ゲートウェイ</div>
+  </div>
+
+  <!-- パブリックサブネット -->
+  <div class="fr pub" style="left:344px;top:204px;width:432px;height:385px">
+    <div class="gl"><img src="../icons/Publicsubnet.svg"><span class="ja">パブリックサブネット</span></div>
+  </div>
+  <div class="node wide cx" id="nat" style="left:640px;top:260px"><img src="../icons/AmazonVPCNATGateway.svg"><div class="t">NAT ゲートウェイ</div></div>
+  <div class="eip hot cx" style="left:640px;top:362px"><img src="../icons/AmazonEC2ElasticIPAddress.svg">送信元 <code>203.0.113.10</code></div>
+  <div class="tx hot cx" style="left:640px;top:412px">送信元を EIP に書き換える</div>
+  <div class="card" style="left:368px;top:452px;width:384px">
+    <div class="h">ルートテーブル</div>
+    <div class="body"><code>0.0.0.0/0</code> <span class="op">→</span><br>インターネットゲートウェイ</div>
+  </div>
+
+  <div class="fn" style="top:629px">IP アドレスは説明用の例</div>
+</div>
+<script>
+window.addEventListener('load', async () => { await document.fonts.ready;
+  wire('#inst', '#nat', {});                         // インスタンス → NAT ゲートウェイ（水平）
+  wire('#nat', '#igw', {from: 't', to: 'b'});        // NAT ゲートウェイ → インターネットゲートウェイ（垂直、x=640）
+  wire('#igw', '#dest', {from: 't', to: 'b'});       // インターネットゲートウェイ → 宛先（垂直、x=640）
+  document.body.dataset.ready = '1';
+});
+</script>
+</body></html>

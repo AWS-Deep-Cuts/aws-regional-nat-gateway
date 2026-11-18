@@ -1,0 +1,74 @@
+/* Regional NAT Gateway の図の部品。diagram.css と deepcuts.css の後に読み込む。
+   枠（.fr）: AWS の構成図の慣例どおりの色の枠。左上の札（.gl）にアイコン 32px と名前を置く。
+   中身はすべて #fig の直下に絶対位置で置き、枠の線と札の下端から 24px 以上空ける（2026-11-01 の著者の指摘）。 */
+
+/* 中心の x を left に書くための補助 */
+.cx { transform: translateX(-50%); }
+
+/* グループの枠 */
+.fr { position: absolute; border: 2px solid var(--ink); }
+.fr.vpc { border-color: #8c4fff; }
+.fr.priv { border-color: #00a4a6; }
+.fr.pub { border-color: #7aa116; }
+.fr.region { border: 2px dashed #00a4a6; }
+.fr.dim { border-color: var(--line); }
+.fr > .gl { position: absolute; left: -2px; top: -2px; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.fr > .gl img { width: 32px; height: 32px; display: block; }
+.fr > .gl .ja { font-size: 16px; font-weight: 900; }
+.fr > .gl .az { font-family: var(--font-mono); font-weight: 800; font-size: 16px; }
+.fr > .gl .code { font-family: var(--font-mono); font-weight: 800; font-size: 16px; color: var(--grey); }
+.fr.dim > .gl { color: var(--grey); }
+.fr.dim > .gl img { opacity: .45; }
+
+/* NAT ゲートウェイの箱（中に EIP の札を置く） */
+.fr.nat { border: 3px solid var(--hot); background: #fff; }
+.fr.nat.ink { border-color: var(--ink); }
+/* 箱の題: アイコン 40px と名前と補足 */
+.nt { position: absolute; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.nt img { width: 40px; height: 40px; display: block; }
+.nt b { font-size: 18px; font-weight: 900; }
+.nt span { font-size: 16px; font-weight: 500; color: #4a4843; }
+.nt code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+
+/* EIP の札 */
+.eip { position: absolute; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px 0 6px;
+  background: #fff; border: 2px solid var(--ink); font-size: 16px; font-weight: 900; white-space: nowrap; }
+.eip img { width: 24px; height: 24px; display: block; }
+.eip code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+.eip.hot { border-color: var(--hot); border-width: 3px; }
+.eip.dim { border-color: var(--line); color: var(--grey); }
+.eip.dim img { opacity: .45; }
+
+/* 文字 */
+.tx { position: absolute; font-size: 16px; font-weight: 500; line-height: 1.45; white-space: nowrap; }
+.tx b { font-weight: 900; }
+.tx code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+.tx.hot { color: var(--hot); font-weight: 900; }
+.tx.grey { color: var(--grey); }
+.fn { position: absolute; left: 0; font-size: 16px; font-weight: 500; color: var(--grey); white-space: nowrap; }
+
+/* 灰色で示す部品 */
+.node.dim img { opacity: .45; }
+.node.dim .t, .node.dim .s { color: var(--grey); }
+.node .s code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+.node.wide { width: 225px; }
+
+/* 番号の札（図の番号と本文の番号を対応させる） */
+.num { position: absolute; width: 28px; height: 28px; background: var(--hot); color: #fff; font-family: var(--font-mono); font-weight: 800;
+  font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.num.ink { background: var(--ink); }
+
+/* 線の説明 */
+.lbl.ink { color: var(--ink); }
+.lbl.step { color: var(--ink); font-weight: 900; }
+
+/* カードの中のコード */
+.card > .body code { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+.card > .body .op, .tx .op { font-family: var(--font-mono); font-weight: 800; }
+
+/* 線を箱の上に描く（NAT ゲートウェイの箱の白い背景の中にある EIP の札まで、矢印を見せるため） */
+#wires { z-index: 1; }
+
+/* 誰が行うかの枠（deepcuts.css の .lane）を点検用に .fr と併用するときも、点線のままにする */
+.fr.lane { border: 2px dashed var(--grey); }
+.fr.lane.aws { border-color: var(--hot); }
